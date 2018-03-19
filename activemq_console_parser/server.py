@@ -58,7 +58,7 @@ class Server:
             yield Queue.parse(self, row)
 
     def queue(self, name):
-        for queue in self.get_queues():
+        for queue in self.queues():
             if queue.name == name:
                 return queue
         raise ActiveMQError('queue not found: {}'.format(name))
