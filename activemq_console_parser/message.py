@@ -76,7 +76,7 @@ class Message(BaseMessage):
 
         _parsed = self.parse()
 
-        bsoup = self.queue.server.get_bsoup('/admin/{}'.format(_parsed['href_properties']))
+        bsoup = self.queue.server.bsoup('/admin/{}'.format(_parsed['href_properties']))
 
         bsoup_table_header = bsoup.find('table', {'id': 'header'})
         bsoup_table_properties = bsoup.find('table', {'id': 'properties'})

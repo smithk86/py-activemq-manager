@@ -36,7 +36,7 @@ class Server:
             allow_redirects=False
         )
 
-    def get_bsoup(self, path):
+    def bsoup(self, path):
         response = self.get(path)
 
         if response.status_code is not requests.codes.ok:
@@ -44,8 +44,8 @@ class Server:
 
         return BeautifulSoup(response.text, 'lxml')
 
-    def get_queue_table(self):
-        bsoup = self.get_bsoup('/admin/queues.jsp')
+    def queue_table(self):
+        bsoup = self.bsoup('/admin/queues.jsp')
         table = bsoup.find_all('table', {'id': 'queues'})
 
         if len(table) == 1:
@@ -53,19 +53,19 @@ class Server:
         else:
             ActiveMQValueError('no queue table was found')
 
-    def get_queues(self):
-        for row in self.get_queue_table().find('tbody').find_all('tr'):
+    def queues(self):
+        for row in self.queue_table().find('tbody').find_all('tr'):
             yield Queue.parse(self, row)
 
-    def get_queue(self, name):
+    def queue(self, name):
         for queue in self.get_queues():
             if queue.name == name:
                 return queue
         raise ActiveMQError('queue not found: {}'.format(name))
 
-    def get_scheduled_messages_table(self):
+    def scheduled_messages_table(self):
         try:
-            bsoup = self.get_bsoup('/admin/scheduled.jsp')
+            bsoup = self.bsoup('/admin/scheduled.jsp')
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 raise ActiveMQError('scheduled messages not supported')
@@ -79,21 +79,21 @@ class Server:
         else:
             raise ActiveMQValueError('no queue table was found')
 
-    def get_scheduled_messages(self):
-        for row in self.get_scheduled_messages_table().find('tbody').find_all('tr'):
+    def scheduled_messages(self):
+        for row in self.scheduled_messages_table().find('tbody').find_all('tr'):
             yield ScheduledMessage(row)
 
     def purge_scheduled_messages(self):
-        for message in self.get_scheduled_messages():
+        for message in self.scheduled_messages():
             data = message.parse()
             response = self.get('/admin/{}'.format(data['href_delete']))
 
             if response.status_code != requests.codes.found:
                 logger.error('status_code: {}, reason: {}'.format(response.status_code, response.reason))
 
-    def get_connections(self):
+    def connections(self):
         try:
-            bsoup = self.get_bsoup('/admin/connections.jsp')
+            bsoup = self.bsoup('/admin/connections.jsp')
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
                 raise ActiveMQError('path not supported: /admin/connections.jsp')

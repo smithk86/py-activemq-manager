@@ -70,7 +70,7 @@ class Queue:
     def purge_by_age(self, minutes):
         def get_all_messages():
             # get/yield messages
-            for message in self.get_messages():
+            for message in self.messages():
                 yield message
             # recursive call to get_all_messages since only 400 messages are shown at a time
             for message in get_all_messages():
@@ -83,8 +83,8 @@ class Queue:
             else:
                 break
 
-    def get_message_table(self):
-        bsoup = self.server.get_bsoup('/admin/browse.jsp?JMSDestination={queue_name}'.format(queue_name=self.name))
+    def message_table(self):
+        bsoup = self.server.bsoup('/admin/browse.jsp?JMSDestination={queue_name}'.format(queue_name=self.name))
         table = bsoup.find_all('table', {'id': 'messages'})
 
         if len(table) == 1:
@@ -92,6 +92,6 @@ class Queue:
         else:
             ActiveMQValueError('no message table was found')
 
-    def get_messages(self):
-        for row in self.get_message_table().find('tbody').find_all('tr'):
+    def messages(self):
+        for row in self.message_table().find('tbody').find_all('tr'):
             yield Message(self, row)
