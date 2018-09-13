@@ -2,6 +2,8 @@ import logging
 from collections import OrderedDict
 from abc import abstractmethod
 
+import requests
+
 from .errors import ActiveMQValueError
 from .helpers import activemq_stamp_datetime
 
@@ -9,57 +11,40 @@ from .helpers import activemq_stamp_datetime
 logger = logging.getLogger(__name__)
 
 
-class BaseMessage(object):
-
-    def __init__(self, bsoup_tr):
-
-        self.bsoup_tr = bsoup_tr
-        self._parsed = None
-
-    def __iter__(self):
-        for key, val in self.parse().items():
-            yield (key, val)
-
-    def parse(self):
-        if not self._parsed:
-            self._parsed = self._do_parse()
-        return self._parsed
-
-    @abstractmethod
-    def _do_parse(self):
-        pass
-
-
-class Message(BaseMessage):
-    def __init__(self, queue, bsoup_tr):
+class Message(object):
+    def __init__(self, queue, message_id, persistence, timestamp, href_properties, href_delete):
         self.queue = queue
-        super(Message, self).__init__(bsoup_tr)
+        self.message_id = message_id
+        self.persistence = persistence
+        self.timestamp = timestamp
+        self.href_properties = href_properties
+        self.href_delete = href_delete
 
-    def _do_parse(self):
-        cells = self.bsoup_tr.find_all('td')
+    @staticmethod
+    def parse(queue, bsoup_tr):
+        cells = bsoup_tr.find_all('td')
 
-        messageid = cells[0].get_text().strip()
+        message_id = cells[0].get_text().strip()
         persistence = cells[2].get_text().strip() == 'Persistent'
         timestamp = cells[6].get_text().strip()
         href_properties = cells[0].find('a').get('href')
         href_delete = cells[8].find('a').get('href')
 
         if not href_delete.startswith('deleteMessage.action'):
-            raise ActiveMQValueError('purge href does not start with "deleteMessage.action": {}'.format(href_delete))
+            raise ActiveMQValueError(f'purge href does not start with "deleteMessage.action": {href_delete}')
 
-        return {
-            'messageid': messageid,
-            'persistence': persistence,
-            'timestamp': activemq_stamp_datetime(timestamp),
-            'href_properties': href_properties,
-            'href_delete': href_delete
-        }
+        return Message(
+            queue=queue,
+            message_id=message_id,
+            persistence=persistence,
+            timestamp=activemq_stamp_datetime(timestamp),
+            href_properties=href_properties,
+            href_delete=href_delete
+        )
 
     def delete(self):
-        parsed = self.parse()
-
-        delete_path = '/admin/{href}'.format(href=parsed['href_delete'])
-        logger.info('delete message from {name}: {messageid}'.format(name=self.queue.name, messageid=parsed['messageid']))
+        delete_path = f'/admin/{self.href_delete}'
+        logger.info(f'delete message from {self.queue.name}: {self.message_id}')
 
         response = self.queue.server.get(delete_path)
 
@@ -74,9 +59,7 @@ class Message(BaseMessage):
                 d[cells[0].text.strip()] = cells[1].text.strip()
             return d
 
-        _parsed = self.parse()
-
-        bsoup = self.queue.server.bsoup('/admin/{}'.format(_parsed['href_properties']))
+        bsoup = self.queue.server.bsoup(f'/admin/{self.href_properties}')
 
         bsoup_table_header = bsoup.find('table', {'id': 'header'})
         bsoup_table_properties = bsoup.find('table', {'id': 'properties'})
@@ -87,21 +70,43 @@ class Message(BaseMessage):
         }
 
 
-class ScheduledMessage(BaseMessage):
-    def _do_parse(self):
-        cells = self.bsoup_tr.find_all('td')
+class ScheduledMessage(object):
 
-        messageid = cells[0].get_text().strip()
-        timestamp = cells[3].get_text().strip()
-        delay = cells[4].get_text().strip()
+    def __init__(self, client, message_id, next_scheduled_time, start, delay, href_delete):
+        self.client = client
+        self.message_id = message_id
+        self.next_scheduled_time = next_scheduled_time
+        self.start = start
+        self.delay = delay
+        self.href_delete = href_delete
+
+    @staticmethod
+    def parse(client, bsoup_tr):
+        cells = bsoup_tr.find_all('td')
+
+        message_id = cells[0].get_text().strip()
+        next_scheduled_time = cells[2].get_text().strip()
+        start = cells[3].get_text().strip()
+        delay = int(cells[4].get_text().strip())
         href_delete = cells[7].find('a').get('href')
 
         if not href_delete.startswith('deleteJob.action'):
-            raise ActiveMQValueError('purge href does not start with "deleteJob.action": {}'.format(href_delete))
+            raise ActiveMQValueError(f'purge href does not start with "deleteJob.action": {href_delete}')
 
-        return {
-            'messageid': messageid,
-            'timestamp': activemq_stamp_datetime(timestamp),
-            'delay': int(delay),
-            'href_delete': href_delete
-        }
+        return ScheduledMessage(
+            client=client,
+            message_id=message_id,
+            next_scheduled_time=activemq_stamp_datetime(next_scheduled_time),
+            start=activemq_stamp_datetime(start),
+            delay=delay,
+            href_delete=href_delete
+        )
+
+    def delete(self):
+        delete_path = f'/admin/{self.href_delete}'
+        logger.info(f'delete scheduled message: {self.message_id} [start={self.start}]')
+
+        response = self.server.get(delete_path)
+
+        if response.status_code is not requests.codes.ok:
+            response.raise_for_status()

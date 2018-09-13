@@ -1,4 +1,4 @@
 from .errors import ActiveMQError, ActiveMQValueError
-from .server import Server
+from .client import Client, Connection
 from .queue import Queue
 from .message import Message, ScheduledMessage

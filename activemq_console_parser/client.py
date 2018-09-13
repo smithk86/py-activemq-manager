@@ -2,6 +2,7 @@ import logging
 
 import requests
 from bs4 import BeautifulSoup
+from collections import namedtuple
 
 from .errors import ActiveMQError, ActiveMQValueError
 from .queue import Queue
@@ -10,14 +11,18 @@ from .message import ScheduledMessage
 
 logger = logging.getLogger(__name__)
 
+Connection = namedtuple('Connection', ['id', 'id_href', 'remote_address', 'active', 'slow'])
 
-class Server:
-    def __init__(self, host, port=8161, username=None, password=None):
+
+class Client:
+
+    def __init__(self, host, port=8161, username=None, password=None, protocol='http'):
         self.host = host
         self.port = port
+        self.protocol = protocol
         self.session = requests.Session()
         self.session.headers.update({
-            'User-agent': 'python-activemq.Server'
+            'User-agent': 'python-activemq.Client'
         })
 
         if username and password:
@@ -27,14 +32,7 @@ class Server:
         self.session.close()
 
     def get(self, path):
-        return self.session.get(
-            'http://{host}:{port}{path}'.format(
-                host=self.host,
-                port=self.port,
-                path=path,
-            ),
-            allow_redirects=False
-        )
+        return self.session.get(f'{self.protocol}://{self.host}:{self.port}{path}', allow_redirects=False)
 
     def bsoup(self, path):
         response = self.get(path)
@@ -52,6 +50,9 @@ class Server:
             return table[0]
         else:
             ActiveMQValueError('no queue table was found')
+
+    def queues_count(self):
+        return len(self.queue_table().find('tbody').find_all('tr'))
 
     def queues(self):
         for row in self.queue_table().find('tbody').find_all('tr'):
@@ -79,17 +80,12 @@ class Server:
         else:
             raise ActiveMQValueError('no queue table was found')
 
+    def scheduled_messages_count(self):
+        return len(self.scheduled_messages_table().find('tbody').find_all('tr'))
+
     def scheduled_messages(self):
         for row in self.scheduled_messages_table().find('tbody').find_all('tr'):
-            yield ScheduledMessage(row)
-
-    def purge_scheduled_messages(self):
-        for message in self.scheduled_messages():
-            data = message.parse()
-            response = self.get('/admin/{}'.format(data['href_delete']))
-
-            if response.status_code != requests.codes.found:
-                logger.error('status_code: {}, reason: {}'.format(response.status_code, response.reason))
+            yield ScheduledMessage.parse(self, row)
 
     def connections(self):
         try:
@@ -105,10 +101,10 @@ class Server:
             if len(table.find('thead').find_all('th')) == 4:
                 for row in table.find('tbody').find_all('tr'):
                     cells = row.find_all('td')
-                    yield {
-                        'id': cells[0].text,
-                        'id_href': cells[0].find('a').get('href'),
-                        'remote_address': cells[1].text,
-                        'active': cells[2].text == 'true',
-                        'slow': cells[3].text == 'true',
-                    }
+                    yield Connection(
+                        id=cells[0].text,
+                        id_href=cells[0].find('a').get('href'),
+                        remote_address=cells[1].text,
+                        active=cells[2].text == 'true',
+                        slow=cells[3].text == 'true'
+                    )

@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 class Queue:
-    def __init__(self, server, name, messages_pending, messages_enqueued, messages_dequeued, consumers, href_purge):
-        self.server = server
+    def __init__(self, client, name, messages_pending, messages_enqueued, messages_dequeued, consumers, href_purge):
+        self.client = client
         self.name = name
         self.messages_pending = messages_pending
         self.messages_enqueued = messages_enqueued
@@ -20,16 +20,8 @@ class Queue:
         self.consumers = consumers
         self.href_purge = href_purge
 
-    def __iter__(self):
-        yield ('name', self.name)
-        yield ('messages_pending', self.messages_pending)
-        yield ('messages_enqueued', self.messages_enqueued)
-        yield ('messages_dequeued', self.messages_dequeued)
-        yield ('consumers', self.consumers)
-        yield ('href_purge', self.href_purge)
-
     @staticmethod
-    def parse(server, bsoup_tr):
+    def parse(client, bsoup_tr):
         cells = bsoup_tr.find_all('td')
 
         # Number Of Pending Messages    Number Of Consumers     Messages Enqueued   Messages Dequeued
@@ -46,7 +38,7 @@ class Queue:
            raise ActiveMQValueError('purge href does not start with "purgeDestination.action": {}'.format(href_purge))
 
         return Queue(
-            server=server,
+            client=client,
             name=queue_name,
             messages_pending=messages_pending,
             messages_enqueued=messages_enqueued,
@@ -55,36 +47,18 @@ class Queue:
             href_purge=href_purge,
         )
 
-    def purge(self):
-        if self.messages_pending > 0:
-            purge_path = '/admin/{href}'.format(href=self.href_purge)
-            logger.info('purging {name}: {messages_pending} messages'.format(name=self.name, messages_pending=self.messages_pending))
-
-            response = self.server.get(purge_path)
-
-            if response.status_code is not requests.codes.ok:
-                response.raise_for_status()
-        else:
-            logger.info('purging {name}: queue is already empty'.format(name=self.name))
-
-    def purge_by_age(self, minutes):
-        def get_all_messages():
-            # get/yield messages
-            for message in self.messages():
-                yield message
-            # recursive call to get_all_messages since only 400 messages are shown at a time
-            for message in get_all_messages():
-                yield message
-
-        for message in get_all_messages():
-            parsed = message.parse()
-            if parsed['timestamp'] < (datetime.now() - timedelta(minutes=minutes)):
-                message.delete()
-            else:
-                break
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'messages_pending': self.messages_pending,
+            'messages_enqueued': self.messages_enqueued,
+            'messages_dequeued': self.messages_dequeued,
+            'consumers': self.consumers,
+            'href_purge': self.href_purge
+        }
 
     def message_table(self):
-        bsoup = self.server.bsoup('/admin/browse.jsp?JMSDestination={queue_name}'.format(queue_name=self.name))
+        bsoup = self.client.bsoup('/admin/browse.jsp?JMSDestination={queue_name}'.format(queue_name=self.name))
         table = bsoup.find_all('table', {'id': 'messages'})
 
         if len(table) == 1:
@@ -94,4 +68,4 @@ class Queue:
 
     def messages(self):
         for row in self.message_table().find('tbody').find_all('tr'):
-            yield Message(self, row)
+            yield Message.parse(self, row)
