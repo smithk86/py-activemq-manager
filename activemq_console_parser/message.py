@@ -106,7 +106,7 @@ class ScheduledMessage(object):
         delete_path = f'/admin/{self.href_delete}'
         logger.info(f'delete scheduled message: {self.message_id} [start={self.start}]')
 
-        response = self.server.get(delete_path)
+        response = self.client.get(delete_path)
 
         if response.status_code is not requests.codes.ok:
             response.raise_for_status()
