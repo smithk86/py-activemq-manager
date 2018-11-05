@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class Queue:
-    def __init__(self, client, name, messages_pending, messages_enqueued, messages_dequeued, consumers, href_purge):
+    def __init__(self, client, name, messages_pending, messages_enqueued, messages_dequeued, consumers, href_purge, href_delete):
         self.client = client
         self.name = name
         self.messages_pending = messages_pending
@@ -19,6 +19,7 @@ class Queue:
         self.messages_dequeued = messages_dequeued
         self.consumers = consumers
         self.href_purge = href_purge
+        self.href_delete = href_delete
 
     @staticmethod
     def parse(client, bsoup_tr):
@@ -33,6 +34,7 @@ class Queue:
         consumers = int(cells[2].text.strip())
         anchors = cells[6].find_all('a')
         href_purge = anchors[1].get('href')
+        href_delete = anchors[2].get('href')
 
         if href_purge and not href_purge.startswith('purgeDestination.action'):
            raise ActiveMQValueError('purge href does not start with "purgeDestination.action": {}'.format(href_purge))
@@ -45,6 +47,7 @@ class Queue:
             messages_dequeued=messages_dequeued,
             consumers=consumers,
             href_purge=href_purge,
+            href_delete=href_delete
         )
 
     def to_dict(self):
