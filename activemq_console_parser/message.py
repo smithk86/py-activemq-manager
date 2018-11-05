@@ -1,6 +1,5 @@
 import logging
-from collections import OrderedDict
-from abc import abstractmethod
+from collections import namedtuple, OrderedDict
 
 import requests
 
@@ -9,6 +8,7 @@ from .helpers import activemq_stamp_datetime
 
 
 logger = logging.getLogger(__name__)
+MessageData = namedtuple('MessageData', ['header', 'properties', 'message'])
 
 
 class Message(object):
@@ -46,12 +46,12 @@ class Message(object):
         delete_path = f'/admin/{self.href_delete}'
         logger.info(f'delete message from {self.queue.name}: {self.message_id}')
 
-        response = self.queue.server.get(delete_path)
+        response = self.queue.client.get(delete_path)
 
         if response.status_code is not requests.codes.ok:
             response.raise_for_status()
 
-    def payload(self):
+    def data(self):
         def _bsoup_table_to_json(bsoup_table):
             d = OrderedDict()
             for row in bsoup_table.find('tbody').find_all('tr'):
@@ -59,15 +59,17 @@ class Message(object):
                 d[cells[0].text.strip()] = cells[1].text.strip()
             return d
 
-        bsoup = self.queue.server.bsoup(f'/admin/{self.href_properties}')
+        bsoup = self.queue.client.bsoup(f'/admin/{self.href_properties}')
 
         bsoup_table_header = bsoup.find('table', {'id': 'header'})
         bsoup_table_properties = bsoup.find('table', {'id': 'properties'})
+        bsoup_div_message = bsoup.find('div', {'class': 'message'})
 
-        return {
-            'header': _bsoup_table_to_json(bsoup_table_header) if bsoup_table_header else None,
-            'properties': _bsoup_table_to_json(bsoup_table_properties) if bsoup_table_properties else None
-        }
+        return MessageData(
+            header=_bsoup_table_to_json(bsoup_table_header) if bsoup_table_header else None,
+            properties=_bsoup_table_to_json(bsoup_table_properties) if bsoup_table_properties else None,
+            message=bsoup_div_message.text.strip()
+        )
 
 
 class ScheduledMessage(object):

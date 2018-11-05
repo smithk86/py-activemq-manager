@@ -56,9 +56,14 @@ class Queue:
             'messages_pending': self.messages_pending,
             'messages_enqueued': self.messages_enqueued,
             'messages_dequeued': self.messages_dequeued,
-            'consumers': self.consumers,
-            'href_purge': self.href_purge
+            'consumers': self.consumers
         }
+
+    def purge(self):
+        self.client.get(f'/admin/{self.href_purge}')
+
+    def delete(self):
+        self.client.get(f'/admin/{self.href_delete}')
 
     def message_table(self):
         bsoup = self.client.bsoup('/admin/browse.jsp?JMSDestination={queue_name}'.format(queue_name=self.name))

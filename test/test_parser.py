@@ -4,13 +4,13 @@ import socket
 from collections import namedtuple
 from datetime import datetime
 from time import sleep
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import docker
 import pytest
 import stomp
 
-from activemq_console_parser import Client, Connection, Queue, Message, ScheduledMessage
+from activemq_console_parser import ActiveMQError, Client, Connection, Queue, Message, MessageData, ScheduledMessage
 
 
 ContainerInfo = namedtuple('ContainerInfo', ['address', 'port', 'container'])
@@ -59,7 +59,7 @@ def dataload(request, client):
 
     def teardown():
         for q in parser.queues():
-            parser.get(f'/admin/{q.href_delete}')
+            q.delete()
     request.addfinalizer(teardown)
 
 
@@ -68,10 +68,7 @@ def dataload(request, client):
     params=[
         {
             'version': '5.15.6'
-        },
-        {
-            'version': '5.13.4'
-        },
+        }
     ]
 )
 def client(request):
@@ -120,49 +117,31 @@ class TestClient():
 
     @pytest.mark.usefixtures('dataload')
     def test_queues(self):
+        assert isinstance(self.parser.queue('pytest.queue1').to_dict(), dict)
+
+        # assert the number of mesages
         assert self.parser.queue('pytest.queue1').messages_pending == 1
         assert self.parser.queue('pytest.queue2').messages_pending == 2
         assert self.parser.queue('pytest.queue3').messages_pending == 3
         assert self.parser.queue('pytest.queue4').messages_pending == 4
 
-    # def test_scheduled_messages(self):
-    #     for m in self.client.scheduled_messages():
-    #         assert type(m) is ScheduledMessage
-    #         assert type(m.client) is Client
-    #         assert type(m.message_id) is str
-    #         assert type(m.next_scheduled_time) is datetime
-    #         assert type(m.start) is datetime
-    #         assert type(m.delay) is int
-    #         assert type(m.href_delete) is str
+        # test removing queue1
+        self.parser.queue('pytest.queue1').delete()
+        with pytest.raises(ActiveMQError) as excinfo:
+            self.parser.queue('pytest.queue1')
+        assert 'queue not found' in str(excinfo.value)
 
-    # def test_connections(self):
-    #     for c in self.client.connections():
-    #         assert type(c) is Connection
-    #         assert isinstance(c._asdict(), dict)
-    #         assert type(c.id) is str
-    #         assert type(c.id_href) is str
-    #         assert type(c.remote_address) is str
-    #         assert type(c.active) is bool
-    #         assert type(c.slow) is bool
+    @pytest.mark.usefixtures('dataload')
+    def test_messages(self):
+        # remove one message from queue4 and re-check pending message count
+        messages = self.parser.queue('pytest.queue4').messages()
+        for _ in range(2):
+            next(messages).delete()
+        assert self.parser.queue('pytest.queue4').messages_pending == 2
+        assert self.parser.queue('pytest.queue4').messages_dequeued == 2
+        assert self.parser.queue('pytest.queue4').messages_enqueued == 4
 
-    # def test_queues(self):
-    #     for q in self.client.queues():
-    #         assert type(q) is Queue
-    #         assert type(q.to_dict()) is dict
-    #         assert type(q.client) is Client
-    #         assert type(q.name) is str
-    #         assert type(q.messages_pending) is int
-    #         assert type(q.messages_enqueued) is int
-    #         assert type(q.messages_dequeued) is int
-    #         assert type(q.consumers) is int
-    #         assert type(q.href_purge) is str
-
-    # def test_messages(self):
-    #     q = next(self.client.queues())
-    #     for m in q.messages():
-    #         assert type(m) is Message
-    #         assert type(m.message_id) is str
-    #         assert type(m.persistence) is bool
-    #         assert type(m.timestamp) is datetime
-    #         assert type(m.href_properties) is str
-    #         assert type(m.href_delete) is str
+        message = next(self.parser.queue('pytest.queue4').messages())
+        data = message.data()
+        assert type(data) is MessageData
+        UUID(data.message) # ensure the message is a uuid
