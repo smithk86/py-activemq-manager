@@ -12,8 +12,7 @@ setup(
     packages=['activemq_console_parser'],
     install_requires=[
         'requests',
-        'beautifulsoup4',
-        'lxml==4.1.1'
+        'beautifulsoup4'
     ],
     classifiers=[
         'Intended Audience :: Developers',

@@ -40,7 +40,7 @@ class Client:
         if response.status_code is not requests.codes.ok:
             response.raise_for_status()
 
-        return BeautifulSoup(response.text, 'lxml')
+        return BeautifulSoup(response.text, 'html.parser')
 
     def queue_table(self):
         bsoup = self.bsoup('/admin/queues.jsp')

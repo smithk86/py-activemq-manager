@@ -68,7 +68,10 @@ def dataload(request, client):
     params=[
         {
             'version': '5.15.6'
-        }
+        },
+        {
+            'version': '5.13.4'
+        },
     ]
 )
 def client(request):

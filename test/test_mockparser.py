@@ -80,13 +80,14 @@ class TestClient():
             assert type(q.messages_dequeued) is int
             assert type(q.consumers) is int
             assert type(q.href_purge) is str
+            assert type(q.href_delete) is str
 
     def test_messages(self):
         q = next(self.client.queues())
         for m in q.messages():
             assert type(m) is Message
             assert type(m.message_id) is str
+            assert type(m.href_properties) is str
             assert type(m.persistence) is bool
             assert type(m.timestamp) is datetime
-            assert type(m.href_properties) is str
             assert type(m.href_delete) is str
