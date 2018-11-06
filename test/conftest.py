@@ -17,7 +17,7 @@ ContainerInfo = namedtuple('ContainerInfo', ['address', 'port', 'container'])
 
 
 def pytest_addoption(parser):
-    parser.addoption('--activemq-version', default='latest')
+    parser.addoption('--activemq-version', required=True, default='latest')
 
 
 @pytest.fixture(scope='module')

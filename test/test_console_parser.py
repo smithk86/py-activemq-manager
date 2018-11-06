@@ -11,11 +11,6 @@ from activemq_console_parser import ActiveMQError, Client, Connection, Queue, Me
 logging.basicConfig(level=logging.INFO)
 
 
-# class MyListener(object):
-#     def on_message(self, headers, message):
-#         pass # do nothing
-
-
 @pytest.mark.usefixtures('load_messages')
 def test_connections(console_parser):
     assert sum(1 for i in console_parser.connections()) == 1
@@ -84,16 +79,12 @@ def test_messages(console_parser):
     assert console_parser.queue('pytest.queue4').messages_dequeued == 2
     assert console_parser.queue('pytest.queue4').messages_enqueued == 4
 
+
 @pytest.mark.usefixtures('load_scheduled_messages')
 def test_scheduled_messages(console_parser, stomp_connection):
-
-    for _ in range(15):
-        stomp_connection.send('pytest.queue1', str(uuid4()), headers={
-            'AMQ_SCHEDULED_DELAY': 100000000
-        })
-    sleep(1)
-    assert console_parser.scheduled_messages_count() == 15
-
+    # validate number of scheduled message
+    assert console_parser.scheduled_messages_count() == 10
+    # validate messages
     for m in console_parser.scheduled_messages():
         assert type(m) is ScheduledMessage
         assert type(m.client) is Client
