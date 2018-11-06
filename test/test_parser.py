@@ -1,147 +1,85 @@
 import logging
-import os
-import socket
-from collections import namedtuple
 from datetime import datetime
-from time import sleep
-from uuid import UUID, uuid4
+from uuid import UUID
 
-import docker
+
 import pytest
-import stomp
 
 from activemq_console_parser import ActiveMQError, Client, Connection, Queue, Message, MessageData, ScheduledMessage
 
 
-ContainerInfo = namedtuple('ContainerInfo', ['address', 'port', 'container'])
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
-def activemq_instance(version='latest'):
-    dir_ = os.path.dirname(os.path.abspath(__file__))
-    client = docker.from_env()
-
-    container = client.containers.run(
-        f'rmohr/activemq:{version}',
-        detach=True,
-        auto_remove=True,
-        ports={
-            '8161/tcp': ('127.0.0.1', None),
-            '61613/tcp': ('127.0.0.1', None)
-        }
-    )
-    ports = client.api.inspect_container(container.id)['NetworkSettings']['Ports']
-    web_port = ports['8161/tcp'][0]
-    stomp_port = ports['61613/tcp'][0]
-
-    return ContainerInfo(
-        address=web_port['HostIp'],
-        port=(int(web_port['HostPort']), int(stomp_port['HostPort'])),
-        container=container
-    )
+# class MyListener(object):
+#     def on_message(self, headers, message):
+#         pass # do nothing
 
 
-@pytest.fixture(scope='function')
-def dataload(request, client):
-    parser, stomp = client
-    stomp.send('pytest.queue1', str(uuid4()))
-    stomp.send('pytest.queue2', str(uuid4()))
-    stomp.send('pytest.queue2', str(uuid4()))
-    stomp.send('pytest.queue3', str(uuid4()))
-    stomp.send('pytest.queue3', str(uuid4()))
-    stomp.send('pytest.queue3', str(uuid4()))
-    stomp.send('pytest.queue4', str(uuid4()))
-    stomp.send('pytest.queue4', str(uuid4()))
-    stomp.send('pytest.queue4', str(uuid4()))
-    stomp.send('pytest.queue4', str(uuid4()))
-    sleep(1)
-
-    def teardown():
-        for q in parser.queues():
-            q.delete()
-    request.addfinalizer(teardown)
+@pytest.mark.usefixtures('dataload')
+def test_connections(console_parser):
+    assert sum(1 for i in console_parser.connections()) == 1
+    for c in console_parser.connections():
+        assert type(c) is Connection
+        assert isinstance(c._asdict(), dict)
+        assert type(c.id) is str
+        assert type(c.id_href) is str
+        assert type(c.remote_address) is str
+        assert type(c.active) is bool
+        assert type(c.slow) is bool
 
 
-@pytest.fixture(
-    scope='class',
-    params=[
-        {
-            'version': '5.15.6'
-        }
-    ]
-)
-def client(request):
-    server = request.param
-    container_info = activemq_instance(server['version'])
-    web_port, stomp_port = container_info.port
+@pytest.mark.usefixtures('dataload')
+def test_queues(console_parser):
+    for q in console_parser.queues():
+        assert type(q) is Queue
+        assert type(q.to_dict()) is dict
+        assert type(q.client) is Client
+        assert type(q.name) is str
+        assert type(q.messages_pending) is int
+        assert type(q.messages_enqueued) is int
+        assert type(q.messages_dequeued) is int
+        assert type(q.consumers) is int
+        assert type(q.href_purge) is str
+        assert type(q.href_delete) is str
 
-    request.cls.stomp = stomp.Connection(
-        host_and_ports=[
-            (container_info.address, stomp_port)
-        ]
-    )
-    while True:
-        try:
-            request.cls.stomp.connect(wait=True)
-            break
-        except stomp.exception.ConnectFailedException:
-            logger.debug('stomp connect failed...retry in 1s')
-            sleep(1)
+    # assert the number of mesages in each queue
+    assert console_parser.queue('pytest.queue1').messages_pending == 1
+    assert console_parser.queue('pytest.queue2').messages_pending == 2
+    assert console_parser.queue('pytest.queue3').messages_pending == 3
+    assert console_parser.queue('pytest.queue4').messages_pending == 4
 
-    request.cls.parser = Client(
-        host=container_info.address,
-        port=web_port,
-        username='admin',
-        password='admin'
-    )
-    logger.debug('waiting for amq web interface')
-    while True:
-        try:
-            request.cls.parser.get('/admin/queues.jsp')
-            break
-        except Exception:
-            sleep(1)
+    # test Queue.delete() with queue1
+    console_parser.queue('pytest.queue1').delete()
+    with pytest.raises(ActiveMQError) as excinfo:
+        console_parser.queue('pytest.queue1')
+    assert 'queue not found' in str(excinfo.value)
 
-    def teardown():
-        request.cls.parser.close()
-        request.cls.stomp.disconnect()
-        container_info.container.stop()
-    request.addfinalizer(teardown)
-
-    return (request.cls.parser, request.cls.stomp)
+    # test Queue.purge() with queue4
+    console_parser.queue('pytest.queue4').purge()
+    assert console_parser.queue('pytest.queue4').messages_pending == 0
 
 
-@pytest.mark.usefixtures('client')
-class TestClient():
+@pytest.mark.usefixtures('dataload')
+def test_messages(console_parser):
 
-    @pytest.mark.usefixtures('dataload')
-    def test_queues(self):
-        assert isinstance(self.parser.queue('pytest.queue1').to_dict(), dict)
+    # validate all messages
+    for m in console_parser.queue('pytest.queue4').messages():
+        assert type(m) is Message
+        assert type(m.message_id) is str
+        assert type(m.href_properties) is str
+        assert type(m.persistence) is bool
+        assert type(m.timestamp) is datetime
+        assert type(m.href_delete) is str
 
-        # assert the number of mesages
-        assert self.parser.queue('pytest.queue1').messages_pending == 1
-        assert self.parser.queue('pytest.queue2').messages_pending == 2
-        assert self.parser.queue('pytest.queue3').messages_pending == 3
-        assert self.parser.queue('pytest.queue4').messages_pending == 4
-
-        # test removing queue1
-        self.parser.queue('pytest.queue1').delete()
-        with pytest.raises(ActiveMQError) as excinfo:
-            self.parser.queue('pytest.queue1')
-        assert 'queue not found' in str(excinfo.value)
-
-    @pytest.mark.usefixtures('dataload')
-    def test_messages(self):
-        # remove one message from queue4 and re-check pending message count
-        messages = self.parser.queue('pytest.queue4').messages()
-        for _ in range(2):
-            next(messages).delete()
-        assert self.parser.queue('pytest.queue4').messages_pending == 2
-        assert self.parser.queue('pytest.queue4').messages_dequeued == 2
-        assert self.parser.queue('pytest.queue4').messages_enqueued == 4
-
-        message = next(self.parser.queue('pytest.queue4').messages())
-        data = message.data()
+        data = m.data()
         assert type(data) is MessageData
         UUID(data.message) # ensure the message is a uuid
+
+    # test Message.delete()
+    messages = console_parser.queue('pytest.queue4').messages()
+    for _ in range(2):
+        next(messages).delete()
+    assert console_parser.queue('pytest.queue4').messages_pending == 2
+    assert console_parser.queue('pytest.queue4').messages_dequeued == 2
+    assert console_parser.queue('pytest.queue4').messages_enqueued == 4
