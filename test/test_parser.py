@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 #         pass # do nothing
 
 
-@pytest.mark.usefixtures('dataload')
+@pytest.mark.usefixtures('load_messages')
 def test_connections(console_parser):
     assert sum(1 for i in console_parser.connections()) == 1
     for c in console_parser.connections():
@@ -29,7 +29,7 @@ def test_connections(console_parser):
         assert type(c.slow) is bool
 
 
-@pytest.mark.usefixtures('dataload')
+@pytest.mark.usefixtures('load_messages')
 def test_queues(console_parser):
     for q in console_parser.queues():
         assert type(q) is Queue
@@ -60,7 +60,7 @@ def test_queues(console_parser):
     assert console_parser.queue('pytest.queue4').messages_pending == 0
 
 
-@pytest.mark.usefixtures('dataload')
+@pytest.mark.usefixtures('load_messages')
 def test_messages(console_parser):
 
     # validate all messages
@@ -83,3 +83,22 @@ def test_messages(console_parser):
     assert console_parser.queue('pytest.queue4').messages_pending == 2
     assert console_parser.queue('pytest.queue4').messages_dequeued == 2
     assert console_parser.queue('pytest.queue4').messages_enqueued == 4
+
+@pytest.mark.usefixtures('load_scheduled_messages')
+def test_scheduled_messages(console_parser, stomp_connection):
+
+    for _ in range(15):
+        stomp_connection.send('pytest.queue1', str(uuid4()), headers={
+            'AMQ_SCHEDULED_DELAY': 100000000
+        })
+    sleep(1)
+    assert console_parser.scheduled_messages_count() == 15
+
+    for m in console_parser.scheduled_messages():
+        assert type(m) is ScheduledMessage
+        assert type(m.client) is Client
+        assert type(m.message_id) is str
+        assert type(m.next_scheduled_time) is datetime
+        assert type(m.start) is datetime
+        assert type(m.delay) is int
+        assert type(m.href_delete) is str

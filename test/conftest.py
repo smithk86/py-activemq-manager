@@ -1,4 +1,5 @@
 import logging
+import os.path
 import socket
 from collections import namedtuple
 from time import sleep
@@ -21,11 +22,21 @@ def pytest_addoption(parser):
 
 @pytest.fixture(scope='module')
 def activemq(request):
+    dir_ = os.path.dirname(os.path.abspath(__file__))
     client = docker.from_env()
     version = request.config.getoption('--activemq-version')
+    tag = f'pytest_activemq:{version}'
+
+    client.images.build(
+        path=f'{dir_}/activemq',
+        tag=tag,
+        buildargs={
+            'ACTIVEMQ_VERSION': version
+        }
+    )
 
     container = client.containers.run(
-        f'rmohr/activemq:{version}',
+        image=tag,
         detach=True,
         auto_remove=True,
         ports={
@@ -46,26 +57,6 @@ def activemq(request):
         port=(int(web_port['HostPort']), int(stomp_port['HostPort'])),
         container=container
     )
-
-
-@pytest.fixture(scope='function')
-def dataload(request, stomp_connection, console_parser):
-    stomp_connection.send('pytest.queue1', str(uuid4()))
-    stomp_connection.send('pytest.queue2', str(uuid4()))
-    stomp_connection.send('pytest.queue2', str(uuid4()))
-    stomp_connection.send('pytest.queue3', str(uuid4()))
-    stomp_connection.send('pytest.queue3', str(uuid4()))
-    stomp_connection.send('pytest.queue3', str(uuid4()))
-    stomp_connection.send('pytest.queue4', str(uuid4()))
-    stomp_connection.send('pytest.queue4', str(uuid4()))
-    stomp_connection.send('pytest.queue4', str(uuid4()))
-    stomp_connection.send('pytest.queue4', str(uuid4()))
-    sleep(1)
-
-    def teardown():
-        for q in console_parser.queues():
-            q.delete()
-    request.addfinalizer(teardown)
 
 
 @pytest.fixture(scope='function')
@@ -116,3 +107,37 @@ def console_parser(request, activemq):
     request.addfinalizer(teardown)
 
     return client
+
+
+@pytest.fixture(scope='function')
+def load_messages(request, stomp_connection, console_parser):
+    stomp_connection.send('pytest.queue1', str(uuid4()))
+    stomp_connection.send('pytest.queue2', str(uuid4()))
+    stomp_connection.send('pytest.queue2', str(uuid4()))
+    stomp_connection.send('pytest.queue3', str(uuid4()))
+    stomp_connection.send('pytest.queue3', str(uuid4()))
+    stomp_connection.send('pytest.queue3', str(uuid4()))
+    stomp_connection.send('pytest.queue4', str(uuid4()))
+    stomp_connection.send('pytest.queue4', str(uuid4()))
+    stomp_connection.send('pytest.queue4', str(uuid4()))
+    stomp_connection.send('pytest.queue4', str(uuid4()))
+    sleep(1)
+
+    def teardown():
+        for q in console_parser.queues():
+            q.delete()
+    request.addfinalizer(teardown)
+
+
+@pytest.fixture(scope='function')
+def load_scheduled_messages(request, stomp_connection, console_parser):
+    for _ in range(10):
+        stomp_connection.send('pytest.queue1', str(uuid4()), headers={
+            'AMQ_SCHEDULED_DELAY': 100000000
+        })
+    sleep(1)
+
+    def teardown():
+        for q in console_parser.scheduled_messages():
+            q.delete()
+    request.addfinalizer(teardown)
