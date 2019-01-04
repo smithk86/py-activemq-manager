@@ -73,7 +73,7 @@ def stomp_connection(request, activemq):
         try:
             client.connect(wait=True)
             break
-        except stomp.exception.ConnectFailedException:
+        except (stomp.exception.ConnectFailedException, stomp.exception.NotConnectedException):
             logger.debug('stomp connect failed...retry in 1s')
             sleep(1)
 
