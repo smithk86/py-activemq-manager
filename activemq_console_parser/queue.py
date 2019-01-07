@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from uuid import UUID
 
 import requests
 
@@ -11,13 +12,14 @@ logger = logging.getLogger(__name__)
 
 
 class Queue:
-    def __init__(self, client, name, messages_pending, messages_enqueued, messages_dequeued, consumers, href_purge, href_delete):
+    def __init__(self, client, name, messages_pending, messages_enqueued, messages_dequeued, consumers, href_secret, href_purge, href_delete):
         self.client = client
         self.name = name
         self.messages_pending = messages_pending
         self.messages_enqueued = messages_enqueued
         self.messages_dequeued = messages_dequeued
         self.consumers = consumers
+        self.href_secret = href_secret
         self.href_purge = href_purge
         self.href_delete = href_delete
 
@@ -36,8 +38,17 @@ class Queue:
         href_purge = anchors[1].get('href')
         href_delete = anchors[2].get('href')
 
+        for param in href_delete.split('&'):
+            if param.startswith('secret'):
+                href_secret = UUID(param[7:])
+                break
+        else:
+            raise ActiveMQValueError('could not determine the value of the href secret')
+
         if href_purge and not href_purge.startswith('purgeDestination.action'):
-           raise ActiveMQValueError('purge href does not start with "purgeDestination.action": {}'.format(href_purge))
+           raise ActiveMQValueError(f'purge href does not start with "purgeDestination.action": {href_purge}')
+        elif href_delete and not href_delete.startswith('deleteDestination.action'):
+           raise ActiveMQValueError(f'delete href does not start with "deleteDestination.action": {href_delete}')
 
         return Queue(
             client=client,
@@ -46,6 +57,7 @@ class Queue:
             messages_enqueued=messages_enqueued,
             messages_dequeued=messages_dequeued,
             consumers=consumers,
+            href_secret=href_secret,
             href_purge=href_purge,
             href_delete=href_delete
         )

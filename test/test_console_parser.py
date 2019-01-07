@@ -35,6 +35,7 @@ def test_queues(console_parser):
         assert type(q.messages_enqueued) is int
         assert type(q.messages_dequeued) is int
         assert type(q.consumers) is int
+        assert type(q.href_secret) is UUID
         assert type(q.href_purge) is str
         assert type(q.href_delete) is str
 
