@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='activemq-console-parser',
-    version='1.0.2',
+    version='1.0.3',
     license='MIT',
     author='Kyle Smith',
     author_email='smithk86@gmail.com',

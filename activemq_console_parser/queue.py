@@ -35,6 +35,7 @@ class Queue:
         messages_dequeued = int(cells[4].text.strip())
         consumers = int(cells[2].text.strip())
         anchors = cells[6].find_all('a')
+        href_secret = None
         href_purge = anchors[1].get('href')
         href_delete = anchors[2].get('href')
 
@@ -43,12 +44,12 @@ class Queue:
                 href_secret = UUID(param[7:])
                 break
         else:
-            raise ActiveMQValueError('could not determine the value of the href secret')
+            logger.warning('could not determine the value of the href secret')
 
         if href_purge and not href_purge.startswith('purgeDestination.action'):
-           raise ActiveMQValueError(f'purge href does not start with "purgeDestination.action": {href_purge}')
+            raise ActiveMQValueError(f'purge href does not start with "purgeDestination.action": {href_purge}')
         elif href_delete and not href_delete.startswith('deleteDestination.action'):
-           raise ActiveMQValueError(f'delete href does not start with "deleteDestination.action": {href_delete}')
+            raise ActiveMQValueError(f'delete href does not start with "deleteDestination.action": {href_delete}')
 
         return Queue(
             client=client,
