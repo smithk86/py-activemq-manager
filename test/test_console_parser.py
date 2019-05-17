@@ -2,13 +2,12 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-
 import pytest
 
 from activemq_console_parser import ActiveMQError, Client, Connection, Queue, Message, MessageData, ScheduledMessage
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.mark.usefixtures('load_messages')
@@ -28,16 +27,13 @@ def test_connections(console_parser):
 def test_queues(console_parser):
     for q in console_parser.queues():
         assert type(q) is Queue
-        assert type(q.to_dict()) is dict
+        assert type(q.asdict()) is dict
         assert type(q.client) is Client
         assert type(q.name) is str
         assert type(q.messages_pending) is int
         assert type(q.messages_enqueued) is int
         assert type(q.messages_dequeued) is int
         assert type(q.consumers) is int
-        assert type(q.href_secret) is UUID
-        assert type(q.href_purge) is str
-        assert type(q.href_delete) is str
 
     # assert the number of mesages in each queue
     assert console_parser.queue('pytest.queue1').messages_pending == 1
@@ -46,14 +42,14 @@ def test_queues(console_parser):
     assert console_parser.queue('pytest.queue4').messages_pending == 4
 
     # test Queue.delete() with queue1
-    console_parser.queue('pytest.queue1').delete()
-    with pytest.raises(ActiveMQError) as excinfo:
-        console_parser.queue('pytest.queue1')
-    assert 'queue not found' in str(excinfo.value)
+    # console_parser.queue('pytest.queue1').delete()
+    # with pytest.raises(ActiveMQError) as excinfo:
+    #     console_parser.queue('pytest.queue1')
+    # assert 'queue not found' in str(excinfo.value)
 
-    # test Queue.purge() with queue4
-    console_parser.queue('pytest.queue4').purge()
-    assert console_parser.queue('pytest.queue4').messages_pending == 0
+    # # test Queue.purge() with queue4
+    # console_parser.queue('pytest.queue4').purge()
+    # assert console_parser.queue('pytest.queue4').messages_pending == 0
 
 
 @pytest.mark.usefixtures('load_messages')

@@ -45,11 +45,7 @@ class Message(object):
     def delete(self):
         delete_path = f'/admin/{self.href_delete}'
         logger.info(f'delete message from {self.queue.name}: {self.message_id}')
-
-        response = self.queue.client.get(delete_path)
-
-        if response.status_code is not requests.codes.ok:
-            response.raise_for_status()
+        self.queue.client.web(delete_path)
 
     def data(self):
         def _bsoup_table_to_json(bsoup_table):
@@ -107,8 +103,4 @@ class ScheduledMessage(object):
     def delete(self):
         delete_path = f'/admin/{self.href_delete}'
         logger.info(f'delete scheduled message: {self.message_id} [start={self.start}]')
-
-        response = self.client.get(delete_path)
-
-        if response.status_code is not requests.codes.ok:
-            response.raise_for_status()
+        self.client.web(delete_path)

@@ -9,6 +9,7 @@ import docker
 import pytest
 import stomp
 
+import docker_helpers
 from activemq_console_parser import Client
 
 
@@ -20,51 +21,35 @@ def pytest_addoption(parser):
     parser.addoption('--activemq-version', help='IE: 5.13.4, 5.15.7', required=True, default='latest')
 
 
-@pytest.fixture(scope='module')
-def activemq(request):
+@pytest.fixture(scope='session')
+def activemq_version(request):
+    return request.config.getoption('--activemq-version')
+
+
+@pytest.yield_fixture(scope='session')
+def activemq(activemq_version):
     dir_ = os.path.dirname(os.path.abspath(__file__))
     client = docker.from_env()
-    version = request.config.getoption('--activemq-version')
-    tag = f'pytest_activemq:{version}'
+    image_name = f'pytest_activemq:{activemq_version}'
 
     client.images.build(
         path=f'{dir_}/activemq',
-        tag=tag,
+        tag=image_name,
         buildargs={
-            'ACTIVEMQ_VERSION': version
+            'ACTIVEMQ_VERSION': activemq_version
         }
     )
 
-    container = client.containers.run(
-        image=tag,
-        detach=True,
-        auto_remove=True,
-        ports={
-            '8161/tcp': ('127.0.0.1', None),
-            '61613/tcp': ('127.0.0.1', None)
-        }
-    )
-    ports = client.api.inspect_container(container.id)['NetworkSettings']['Ports']
-    web_port = ports['8161/tcp'][0]
-    stomp_port = ports['61613/tcp'][0]
-
-    def teardown():
-        container.stop()
-    request.addfinalizer(teardown)
-
-    return ContainerInfo(
-        address=web_port['HostIp'],
-        port=(int(web_port['HostPort']), int(stomp_port['HostPort'])),
-        container=container
-    )
+    container_info = docker_helpers.run(image_name, ports=['8161/tcp', '61613/tcp'])
+    yield container_info
+    container_info.container.stop()
 
 
-@pytest.fixture(scope='function')
+@pytest.yield_fixture(scope='function')
 def stomp_connection(request, activemq):
-    web_port, stomp_port = activemq.port
     client = stomp.Connection(
         host_and_ports=[
-            (activemq.address, stomp_port)
+            (activemq.address, activemq.ports.get('61613/tcp'))
         ]
     )
 
@@ -77,19 +62,14 @@ def stomp_connection(request, activemq):
             logger.debug('stomp connect failed...retry in 1s')
             sleep(1)
 
-    def teardown():
-        client.disconnect()
-    request.addfinalizer(teardown)
-
-    return client
+    yield client
+    client.disconnect()
 
 
-@pytest.fixture(scope='function')
+@pytest.yield_fixture(scope='function')
 def console_parser(request, activemq):
-    web_port, stomp_port = activemq.port
     client = Client(
-        host=activemq.address,
-        port=web_port,
+        endpoint=f'http://{activemq.address}:{activemq.ports.get("8161/tcp")}',
         username='admin',
         password='admin'
     )
@@ -97,16 +77,13 @@ def console_parser(request, activemq):
     logger.debug('waiting for amq web interface')
     while True:
         try:
-            client.get('/admin/queues.jsp')
+            client.web('/admin/queues.jsp')
             break
-        except Exception:
+        except Exception as e:
             sleep(1)
 
-    def teardown():
-        client.close()
-    request.addfinalizer(teardown)
-
-    return client
+    yield client
+    client.close()
 
 
 @pytest.fixture(scope='function')

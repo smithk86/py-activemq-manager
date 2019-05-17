@@ -14,12 +14,20 @@ logger = logging.getLogger(__name__)
 Connection = namedtuple('Connection', ['id', 'id_href', 'remote_address', 'active', 'slow'])
 
 
-class Client:
+def parse_amq_api_object(dict_):
+    # get objectName and strip off "org.apache.activemq:"
+    object_name = dict_['objectName'][20:]
+    parts = dict()
+    for part in object_name.split(','):
+        key, val = tuple(part.split('='))
+        parts[key] = val
+    return parts
 
-    def __init__(self, host, port=8161, username=None, password=None, protocol='http'):
-        self.host = host
-        self.port = port
-        self.protocol = protocol
+
+class Client:
+    def __init__(self, endpoint, broker_name='localhost', username=None, password=None):
+        self.endpoint = endpoint
+        self.broker_name = broker_name
         self.session = requests.Session()
         self.session.headers.update({
             'User-agent': 'python-activemq.Client'
@@ -28,41 +36,60 @@ class Client:
         if username and password:
             self.session.auth = (username, password)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
     def close(self):
         self.session.close()
 
-    def get(self, path):
-        return self.session.get(f'{self.protocol}://{self.host}:{self.port}{path}', allow_redirects=False)
+    def api(self, path):
+        r = self.session.get(f'{self.endpoint}{path}')
+        if r.status_code is not requests.codes.ok:
+            r.raise_for_status()
+        return r.json().get('value')
+
+    def web(self, path):
+        r = self.session.get(f'{self.endpoint}{path}', allow_redirects=False)
+        if r.status_code is not requests.codes.ok:
+            r.raise_for_status()
+        return r.text
 
     def bsoup(self, path):
-        response = self.get(path)
+        text = self.web(path)
+        return BeautifulSoup(text, 'lxml')
 
-        if response.status_code is not requests.codes.ok:
-            response.raise_for_status()
-
-        return BeautifulSoup(response.text, 'lxml')
-
-    def queue_table(self):
-        bsoup = self.bsoup('/admin/queues.jsp')
-        table = bsoup.find_all('table', {'id': 'queues'})
-
-        if len(table) == 1:
-            return table[0]
-        else:
-            ActiveMQValueError('no queue table was found')
-
-    def queues_count(self):
-        return len(self.queue_table().find('tbody').find_all('tr'))
-
-    def queues(self):
-        for row in self.queue_table().find('tbody').find_all('tr'):
-            yield Queue.parse(self, row)
+    def queue_names(self):
+        data = self.api(f'/api/jolokia/read/org.apache.activemq:brokerName={self.broker_name},type=Broker/Queues')
+        for queue in data:
+            parsed = parse_amq_api_object(queue)
+            yield parsed['destinationName']
 
     def queue(self, name):
-        for queue in self.queues():
-            if queue.name == name:
-                return queue
-        raise ActiveMQError('queue not found: {}'.format(name))
+        attrs = [
+            'QueueSize',
+            'EnqueueCount',
+            'DequeueCount',
+            'ConsumerCount'
+        ]
+        data = self.api(f'/api/jolokia/read/org.apache.activemq:brokerName={self.broker_name},type=Broker,destinationType=Queue,destinationName={name}/{",".join(attrs)}')
+        return Queue(
+            client=self,
+            name=name,
+            messages_pending=data['QueueSize'],
+            messages_enqueued=data['EnqueueCount'],
+            messages_dequeued=data['DequeueCount'],
+            consumers=data['ConsumerCount']
+        )
+
+    def queues(self):
+        for name in self.queue_names():
+            yield self.queue(name)
+
+    def queues_count(self):
+        return sum(1 for _ in self.queue_names())
 
     def scheduled_messages_table(self):
         try:
