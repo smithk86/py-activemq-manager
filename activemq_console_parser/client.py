@@ -15,13 +15,7 @@ logger = logging.getLogger(__name__)
 Connection = namedtuple('Connection', ['client', 'id', 'remote_address', 'active', 'slow'])
 
 
-def parse_amq_api_object(dict_):
-    # get objectName and strip off "org.apache.activemq:"
-    object_name = dict_['objectName'][20:]
-    return parse_jolokia_obj_path(object_name)
-
-
-def parse_jolokia_obj_path(path):
+def parse_jolokia_path(path):
     parts = dict()
     for part in path.split(','):
         key, val = tuple(part.split('='))
@@ -78,10 +72,9 @@ class Client:
         return BeautifulSoup(text, 'lxml')
 
     async def queue_names(self):
-        data = await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker_name}', attribute='Queues')
-        for queue in data:
-            parsed = parse_amq_api_object(queue)
-            yield parsed['destinationName']
+        queues = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.broker_name},destinationType=Queue,destinationName=*')
+        for queue in queues:
+            yield parse_jolokia_path(queue).get('destinationName')
 
     async def queue(self, name):
         try:
@@ -135,7 +128,7 @@ class Client:
     async def connections(self):
         remote_address_search = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.broker_name},connector=clientConnectors,connectorName=openwire,connectionViewType=remoteAddress,connectionName=*')
         for remote_address_obj in remote_address_search:
-            connection_name = parse_jolokia_obj_path(remote_address_obj).get('connectionName')
+            connection_name = parse_jolokia_path(remote_address_obj).get('connectionName')
             remote_address = await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker_name},connector=clientConnectors,connectorName=openwire,connectionViewType=remoteAddress,connectionName={connection_name}', attribute=[
                 'ClientId',
                 'RemoteAddress',
