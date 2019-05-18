@@ -33,10 +33,10 @@ class Queue:
         }
 
     def purge(self):
-        pass
+        self.client.api('exec', f'org.apache.activemq:brokerName={self.client.broker_name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='purge')
 
     def delete(self):
-        pass
+        self.client.api('exec', f'org.apache.activemq:type=Broker,brokerName={self.client.broker_name}', operation='removeQueue(java.lang.String)', arguments=[self.name])
 
     def message_table(self):
         bsoup = self.client.bsoup(f'/admin/browse.jsp?JMSDestination={self.name}')

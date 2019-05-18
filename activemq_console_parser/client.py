@@ -28,6 +28,7 @@ class Client:
     def __init__(self, endpoint, broker_name='localhost', username=None, password=None):
         self.endpoint = endpoint
         self.broker_name = broker_name
+
         self.session = requests.Session()
         self.session.headers.update({
             'User-agent': 'python-activemq.Client'
@@ -45,8 +46,14 @@ class Client:
     def close(self):
         self.session.close()
 
-    def api(self, path):
-        r = self.session.get(f'{self.endpoint}{path}')
+    def api(self, type, mbean, **kwargs):
+        payload = {
+            'type': type,
+            'mbean': mbean
+        }
+        payload.update(kwargs)
+
+        r = self.session.post(f'{self.endpoint}/api/jolokia', json=payload)
         if r.status_code is not requests.codes.ok:
             r.raise_for_status()
         return r.json().get('value')
@@ -62,27 +69,30 @@ class Client:
         return BeautifulSoup(text, 'lxml')
 
     def queue_names(self):
-        data = self.api(f'/api/jolokia/read/org.apache.activemq:brokerName={self.broker_name},type=Broker/Queues')
+        data = self.api('read', f'org.apache.activemq:brokerName={self.broker_name},type=Broker', attribute='Queues')
         for queue in data:
             parsed = parse_amq_api_object(queue)
             yield parsed['destinationName']
 
     def queue(self, name):
-        attrs = [
+        attributes = [
             'QueueSize',
             'EnqueueCount',
             'DequeueCount',
             'ConsumerCount'
         ]
-        data = self.api(f'/api/jolokia/read/org.apache.activemq:brokerName={self.broker_name},type=Broker,destinationType=Queue,destinationName={name}/{",".join(attrs)}')
-        return Queue(
-            client=self,
-            name=name,
-            messages_pending=data['QueueSize'],
-            messages_enqueued=data['EnqueueCount'],
-            messages_dequeued=data['DequeueCount'],
-            consumers=data['ConsumerCount']
-        )
+        data = self.api('read', f'org.apache.activemq:brokerName={self.broker_name},type=Broker,destinationType=Queue,destinationName={name}', attribute=','.join(attributes))
+        if data is None:
+            raise ActiveMQError(f'queue not found: {name}')
+        else:
+            return Queue(
+                client=self,
+                name=name,
+                messages_pending=data['QueueSize'],
+                messages_enqueued=data['EnqueueCount'],
+                messages_dequeued=data['DequeueCount'],
+                consumers=data['ConsumerCount']
+            )
 
     def queues(self):
         for name in self.queue_names():

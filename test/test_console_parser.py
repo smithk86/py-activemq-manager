@@ -1,13 +1,9 @@
-import logging
 from datetime import datetime
 from uuid import UUID
 
 import pytest
 
 from activemq_console_parser import ActiveMQError, Client, Connection, Queue, Message, MessageData, ScheduledMessage
-
-
-logging.basicConfig(level=logging.DEBUG)
 
 
 @pytest.mark.usefixtures('load_messages')
@@ -42,19 +38,18 @@ def test_queues(console_parser):
     assert console_parser.queue('pytest.queue4').messages_pending == 4
 
     # test Queue.delete() with queue1
-    # console_parser.queue('pytest.queue1').delete()
-    # with pytest.raises(ActiveMQError) as excinfo:
-    #     console_parser.queue('pytest.queue1')
-    # assert 'queue not found' in str(excinfo.value)
+    console_parser.queue('pytest.queue1').delete()
+    with pytest.raises(ActiveMQError) as excinfo:
+        console_parser.queue('pytest.queue1')
+    assert 'queue not found: pytest.queue1' in str(excinfo.value)
 
-    # # test Queue.purge() with queue4
-    # console_parser.queue('pytest.queue4').purge()
-    # assert console_parser.queue('pytest.queue4').messages_pending == 0
+    # test Queue.purge() with queue4
+    console_parser.queue('pytest.queue4').purge()
+    assert console_parser.queue('pytest.queue4').messages_pending == 0
 
 
 @pytest.mark.usefixtures('load_messages')
 def test_messages(console_parser):
-
     # validate all messages
     for m in console_parser.queue('pytest.queue4').messages():
         assert type(m) is Message
@@ -66,7 +61,7 @@ def test_messages(console_parser):
 
         data = m.data()
         assert type(data) is MessageData
-        UUID(data.message) # ensure the message is a uuid
+        UUID(data.message)  # ensure the message is a uuid
 
     # test Message.delete()
     messages = console_parser.queue('pytest.queue4').messages()
