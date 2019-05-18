@@ -12,14 +12,18 @@ from .message import ScheduledMessage
 
 logger = logging.getLogger(__name__)
 
-Connection = namedtuple('Connection', ['id', 'id_href', 'remote_address', 'active', 'slow'])
+Connection = namedtuple('Connection', ['client', 'id', 'remote_address', 'active', 'slow'])
 
 
 def parse_amq_api_object(dict_):
     # get objectName and strip off "org.apache.activemq:"
     object_name = dict_['objectName'][20:]
+    return parse_jolokia_obj_path(object_name)
+
+
+def parse_jolokia_obj_path(path):
     parts = dict()
-    for part in object_name.split(','):
+    for part in path.split(','):
         key, val = tuple(part.split('='))
         parts[key] = val
     return parts
@@ -37,6 +41,9 @@ class Client:
         self.session = aiohttp.ClientSession(auth=auth, headers={
             'User-agent': 'activemq-console-parser.Client'
         })
+
+    def __repr__(self):
+        return f'<activemq_console_parser.client.Client object endpoint={self.endpoint}>'
 
     async def __aenter__(self):
         return self
@@ -71,14 +78,14 @@ class Client:
         return BeautifulSoup(text, 'lxml')
 
     async def queue_names(self):
-        data = await self.api('read', f'org.apache.activemq:brokerName={self.broker_name},type=Broker', attribute='Queues')
+        data = await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker_name}', attribute='Queues')
         for queue in data:
             parsed = parse_amq_api_object(queue)
             yield parsed['destinationName']
 
     async def queue(self, name):
         try:
-            data = await self.api('read', f'org.apache.activemq:brokerName={self.broker_name},type=Broker,destinationType=Queue,destinationName={name}', attributes=[
+            data = await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker_name},destinationType=Queue,destinationName={name}', attribute=[
                 'QueueSize',
                 'EnqueueCount',
                 'DequeueCount',
@@ -126,23 +133,19 @@ class Client:
             yield ScheduledMessage.parse(self, row)
 
     async def connections(self):
-        try:
-            bsoup = await self.bsoup('/admin/connections.jsp')
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                raise BrokerError('path not supported: /admin/connections.jsp')
-            else:
-                raise e
-
-        for table in bsoup.find_all(id='connections'):
-            # ensure the head only has four columns (name, remote address, active, slow)
-            if len(table.find('thead').find_all('th')) == 4:
-                for row in table.find('tbody').find_all('tr'):
-                    cells = row.find_all('td')
-                    yield Connection(
-                        id=cells[0].text,
-                        id_href=cells[0].find('a').get('href'),
-                        remote_address=cells[1].text,
-                        active=cells[2].text == 'true',
-                        slow=cells[3].text == 'true'
-                    )
+        remote_address_search = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.broker_name},connector=clientConnectors,connectorName=openwire,connectionViewType=remoteAddress,connectionName=*')
+        for remote_address_obj in remote_address_search:
+            connection_name = parse_jolokia_obj_path(remote_address_obj).get('connectionName')
+            remote_address = await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker_name},connector=clientConnectors,connectorName=openwire,connectionViewType=remoteAddress,connectionName={connection_name}', attribute=[
+                'ClientId',
+                'RemoteAddress',
+                'Active',
+                'Slow'
+            ])
+            yield Connection(
+                client=self,
+                id=remote_address['ClientId'],
+                remote_address=remote_address['RemoteAddress'],
+                active=remote_address['Active'],
+                slow=remote_address['Slow'],
+            )

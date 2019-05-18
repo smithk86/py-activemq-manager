@@ -13,18 +13,20 @@ async def alist(aiter_):
     return list_
 
 
-@pytest.mark.asyncio
-@pytest.mark.usefixtures('load_messages')
-async def test_connections(console_parser):
-    assert len(await alist(console_parser.connections()))
-    async for c in console_parser.connections():
-        assert type(c) is Connection
-        assert isinstance(c._asdict(), dict)
-        assert type(c.id) is str
-        assert type(c.id_href) is str
-        assert type(c.remote_address) is str
-        assert type(c.active) is bool
-        assert type(c.slow) is bool
+# these tests cannot be used as STOMP does not keep an open connections
+# @pytest.mark.asyncio
+# @pytest.mark.usefixtures('load_messages')
+# async def test_connections(console_parser):
+#     connections = await alist(console_parser.connections())
+#     assert len(connections) > 0
+#     for c in connections:
+#         assert type(c) is Connection
+#         assert type(c.client) is Client
+#         assert isinstance(c._asdict(), dict)
+#         assert type(c.id) is str
+#         assert type(c.remote_address) is str
+#         assert type(c.active) is bool
+#         assert type(c.slow) is bool
 
 
 @pytest.mark.usefixtures('load_messages')

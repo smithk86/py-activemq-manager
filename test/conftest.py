@@ -54,7 +54,7 @@ def activemq(activemq_image):
 
 
 @pytest.yield_fixture(scope='function')
-def stomp_connection(request, activemq):
+def stomp_connection(activemq):
     client = stomp.Connection(
         host_and_ports=[
             (activemq.address, activemq.ports.get('61613/tcp'))
@@ -76,7 +76,7 @@ def stomp_connection(request, activemq):
 
 @pytest.yield_fixture(scope='function')
 @pytest.mark.asyncio
-async def console_parser(request, activemq):
+async def console_parser(activemq):
     client = Client(
         endpoint=f'http://{activemq.address}:{activemq.ports.get("8161/tcp")}',
         username='admin',
