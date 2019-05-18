@@ -1,9 +1,7 @@
 import logging
 from collections import namedtuple, OrderedDict
 
-import requests
-
-from .errors import ActiveMQValueError
+from .errors import BrokerError
 from .helpers import activemq_stamp_datetime
 
 
@@ -12,42 +10,20 @@ MessageData = namedtuple('MessageData', ['header', 'properties', 'message'])
 
 
 class Message(object):
-    def __init__(self, queue, message_id, persistence, timestamp, href_properties, href_delete):
+    def __init__(self, queue, message_id, persistence, timestamp):
         self.queue = queue
         self.message_id = message_id
         self.persistence = persistence
         self.timestamp = timestamp
-        self.href_properties = href_properties
-        self.href_delete = href_delete
 
-    @staticmethod
-    def parse(queue, bsoup_tr):
-        cells = bsoup_tr.find_all('td')
+    def __repr__(self):
+        return f'<activemq_console_parser.message.Message object id={self.message_id}>'
 
-        message_id = cells[0].get_text().strip()
-        persistence = cells[2].get_text().strip() == 'Persistent'
-        timestamp = cells[6].get_text().strip()
-        href_properties = cells[0].find('a').get('href')
-        href_delete = cells[8].find('a').get('href')
-
-        if not href_delete.startswith('deleteMessage.action'):
-            raise ActiveMQValueError(f'purge href does not start with "deleteMessage.action": {href_delete}')
-
-        return Message(
-            queue=queue,
-            message_id=message_id,
-            persistence=persistence,
-            timestamp=activemq_stamp_datetime(timestamp),
-            href_properties=href_properties,
-            href_delete=href_delete
-        )
-
-    def delete(self):
-        delete_path = f'/admin/{self.href_delete}'
+    async def delete(self):
         logger.info(f'delete message from {self.queue.name}: {self.message_id}')
-        self.queue.client.web(delete_path)
+        await self.queue.client.api('exec', f'org.apache.activemq:brokerName={self.queue.client.broker_name},type=Broker,destinationType=Queue,destinationName={self.queue.name}', operation='removeMessage(java.lang.String)', arguments=[self.message_id])
 
-    def data(self):
+    async def data(self):
         def _bsoup_table_to_json(bsoup_table):
             d = OrderedDict()
             for row in bsoup_table.find('tbody').find_all('tr'):
@@ -55,8 +31,7 @@ class Message(object):
                 d[cells[0].text.strip()] = cells[1].text.strip()
             return d
 
-        bsoup = self.queue.client.bsoup(f'/admin/{self.href_properties}')
-
+        bsoup = await self.queue.client.bsoup(f'/admin/message.jsp?id={self.message_id}&JMSDestination={self.queue.name}')
         bsoup_table_header = bsoup.find('table', {'id': 'header'})
         bsoup_table_properties = bsoup.find('table', {'id': 'properties'})
         bsoup_div_message = bsoup.find('div', {'class': 'message'})
@@ -89,7 +64,7 @@ class ScheduledMessage(object):
         href_delete = cells[7].find('a').get('href')
 
         if not href_delete.startswith('deleteJob.action'):
-            raise ActiveMQValueError(f'purge href does not start with "deleteJob.action": {href_delete}')
+            raise BrokerError(f'purge href does not start with "deleteJob.action": {href_delete}')
 
         return ScheduledMessage(
             client=client,
@@ -100,7 +75,6 @@ class ScheduledMessage(object):
             href_delete=href_delete
         )
 
-    def delete(self):
-        delete_path = f'/admin/{self.href_delete}'
+    async def delete(self):
         logger.info(f'delete scheduled message: {self.message_id} [start={self.start}]')
-        self.client.web(delete_path)
+        await self.client.web(f'/admin/{self.href_delete}')

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os.path
 import socket
@@ -18,29 +19,36 @@ ContainerInfo = namedtuple('ContainerInfo', ['address', 'port', 'container'])
 
 
 def pytest_addoption(parser):
-    parser.addoption('--activemq-version', help='IE: 5.13.4, 5.15.7', required=True, default='latest')
+    parser.addoption('--activemq-image', required=True)
 
 
 @pytest.fixture(scope='session')
-def activemq_version(request):
-    return request.config.getoption('--activemq-version')
+def activemq_image(request):
+    return request.config.getoption('--activemq-image')
+
+
+# override the default event_loop fixture
+@pytest.fixture(scope='session')
+def event_loop():
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest.yield_fixture(scope='session')
-def activemq(activemq_version):
+def activemq(activemq_image):
     dir_ = os.path.dirname(os.path.abspath(__file__))
-    client = docker.from_env()
-    image_name = f'pytest_activemq:{activemq_version}'
+    # client = docker.from_env()
 
-    client.images.build(
-        path=f'{dir_}/activemq',
-        tag=image_name,
-        buildargs={
-            'ACTIVEMQ_VERSION': activemq_version
-        }
-    )
+    # client.images.build(
+    #     path=f'{dir_}/activemq',
+    #     tag=activemq_image,
+    #     buildargs={
+    #         'ACTIVEMQ_VERSION': activemq_version
+    #     }
+    # )
 
-    container_info = docker_helpers.run(image_name, ports=['8161/tcp', '61613/tcp'])
+    container_info = docker_helpers.run(activemq_image, ports=['8161/tcp', '61613/tcp'])
     yield container_info
     container_info.container.stop()
 
@@ -67,7 +75,8 @@ def stomp_connection(request, activemq):
 
 
 @pytest.yield_fixture(scope='function')
-def console_parser(request, activemq):
+@pytest.mark.asyncio
+async def console_parser(request, activemq):
     client = Client(
         endpoint=f'http://{activemq.address}:{activemq.ports.get("8161/tcp")}',
         username='admin',
@@ -77,17 +86,18 @@ def console_parser(request, activemq):
     logger.debug('waiting for amq web interface')
     while True:
         try:
-            client.web('/admin/queues.jsp')
+            await client.web('/admin/queues.jsp')
             break
         except Exception as e:
             sleep(1)
 
     yield client
-    client.close()
+    await client.close()
 
 
-@pytest.fixture(scope='function')
-def load_messages(request, stomp_connection, console_parser):
+@pytest.mark.asyncio
+@pytest.yield_fixture(scope='function')
+async def load_messages(stomp_connection, console_parser):
     stomp_connection.send('pytest.queue1', str(uuid4()))
     stomp_connection.send('pytest.queue2', str(uuid4()))
     stomp_connection.send('pytest.queue2', str(uuid4()))
@@ -100,21 +110,22 @@ def load_messages(request, stomp_connection, console_parser):
     stomp_connection.send('pytest.queue4', str(uuid4()))
     sleep(1)
 
-    def teardown():
-        for q in console_parser.queues():
-            q.delete()
-    request.addfinalizer(teardown)
+    yield
+
+    async for q in console_parser.queues():
+        await q.delete()
 
 
-@pytest.fixture(scope='function')
-def load_scheduled_messages(request, stomp_connection, console_parser):
+@pytest.mark.asyncio
+@pytest.yield_fixture(scope='function')
+async def load_scheduled_messages(stomp_connection, console_parser):
     for _ in range(10):
         stomp_connection.send('pytest.queue1', str(uuid4()), headers={
             'AMQ_SCHEDULED_DELAY': 100000000
         })
     sleep(1)
 
-    def teardown():
-        for q in console_parser.scheduled_messages():
-            q.delete()
-    request.addfinalizer(teardown)
+    yield
+
+    async for q in console_parser.scheduled_messages():
+        await q.delete()

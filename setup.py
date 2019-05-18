@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='activemq-console-parser',
-    version='1.2.0',
+    version='2.0.0-dev',
     license='MIT',
     author='Kyle Smith',
     author_email='smithk86@gmail.com',
@@ -13,7 +13,7 @@ setup(
     install_requires=[
         'beautifulsoup4',
         'lxml',
-        'requests'
+        'aiohttp'
     ],
     classifiers=[
         'Intended Audience :: Developers',

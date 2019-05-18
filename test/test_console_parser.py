@@ -3,13 +3,21 @@ from uuid import UUID
 
 import pytest
 
-from activemq_console_parser import ActiveMQError, Client, Connection, Queue, Message, MessageData, ScheduledMessage
+from activemq_console_parser import BrokerError, Client, Connection, Queue, Message, MessageData, ScheduledMessage
 
 
+async def alist(aiter_):
+    list_ = list()
+    async for x in aiter_:
+        list_.append(x)
+    return list_
+
+
+@pytest.mark.asyncio
 @pytest.mark.usefixtures('load_messages')
-def test_connections(console_parser):
-    assert sum(1 for i in console_parser.connections()) == 1
-    for c in console_parser.connections():
+async def test_connections(console_parser):
+    assert len(await alist(console_parser.connections()))
+    async for c in console_parser.connections():
         assert type(c) is Connection
         assert isinstance(c._asdict(), dict)
         assert type(c.id) is str
@@ -20,8 +28,9 @@ def test_connections(console_parser):
 
 
 @pytest.mark.usefixtures('load_messages')
-def test_queues(console_parser):
-    for q in console_parser.queues():
+@pytest.mark.asyncio
+async def test_queues(console_parser):
+    async for q in console_parser.queues():
         assert type(q) is Queue
         assert type(q.asdict()) is dict
         assert type(q.client) is Client
@@ -32,52 +41,53 @@ def test_queues(console_parser):
         assert type(q.consumers) is int
 
     # assert the number of mesages in each queue
-    assert console_parser.queue('pytest.queue1').messages_pending == 1
-    assert console_parser.queue('pytest.queue2').messages_pending == 2
-    assert console_parser.queue('pytest.queue3').messages_pending == 3
-    assert console_parser.queue('pytest.queue4').messages_pending == 4
+    assert (await console_parser.queue('pytest.queue1')).messages_pending == 1
+    assert (await console_parser.queue('pytest.queue2')).messages_pending == 2
+    assert (await console_parser.queue('pytest.queue3')).messages_pending == 3
+    assert (await console_parser.queue('pytest.queue4')).messages_pending == 4
 
     # test Queue.delete() with queue1
-    console_parser.queue('pytest.queue1').delete()
-    with pytest.raises(ActiveMQError) as excinfo:
-        console_parser.queue('pytest.queue1')
+    await (await console_parser.queue('pytest.queue1')).delete()
+    with pytest.raises(BrokerError) as excinfo:
+        await console_parser.queue('pytest.queue1')
     assert 'queue not found: pytest.queue1' in str(excinfo.value)
 
     # test Queue.purge() with queue4
-    console_parser.queue('pytest.queue4').purge()
-    assert console_parser.queue('pytest.queue4').messages_pending == 0
+    await (await console_parser.queue('pytest.queue4')).purge()
+    assert (await console_parser.queue('pytest.queue4')).messages_pending == 0
 
 
+@pytest.mark.asyncio
 @pytest.mark.usefixtures('load_messages')
-def test_messages(console_parser):
+async def test_messages(console_parser):
     # validate all messages
-    for m in console_parser.queue('pytest.queue4').messages():
+    async for m in (await console_parser.queue('pytest.queue4')).messages():
         assert type(m) is Message
         assert type(m.message_id) is str
-        assert type(m.href_properties) is str
         assert type(m.persistence) is bool
         assert type(m.timestamp) is datetime
-        assert type(m.href_delete) is str
 
-        data = m.data()
+        data = await m.data()
         assert type(data) is MessageData
         UUID(data.message)  # ensure the message is a uuid
 
     # test Message.delete()
-    messages = console_parser.queue('pytest.queue4').messages()
+    messages = (await console_parser.queue('pytest.queue4')).messages()
     for _ in range(2):
-        next(messages).delete()
-    assert console_parser.queue('pytest.queue4').messages_pending == 2
-    assert console_parser.queue('pytest.queue4').messages_dequeued == 2
-    assert console_parser.queue('pytest.queue4').messages_enqueued == 4
+        msg = await messages.__anext__()
+        await msg.delete()
+    assert (await console_parser.queue('pytest.queue4')).messages_pending == 2
+    assert (await console_parser.queue('pytest.queue4')).messages_dequeued == 2
+    assert (await console_parser.queue('pytest.queue4')).messages_enqueued == 4
 
 
+@pytest.mark.asyncio
 @pytest.mark.usefixtures('load_scheduled_messages')
-def test_scheduled_messages(console_parser, stomp_connection):
+async def test_scheduled_messages(console_parser, stomp_connection):
     # validate number of scheduled message
-    assert console_parser.scheduled_messages_count() == 10
+    assert await console_parser.scheduled_messages_count() == 10
     # validate messages
-    for m in console_parser.scheduled_messages():
+    async for m in console_parser.scheduled_messages():
         assert type(m) is ScheduledMessage
         assert type(m.client) is Client
         assert type(m.message_id) is str

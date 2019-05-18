@@ -1,10 +1,11 @@
+import asyncio
 import logging
 
-import requests
+import aiohttp
 from bs4 import BeautifulSoup
 from collections import namedtuple
 
-from .errors import ActiveMQError, ActiveMQValueError
+from .errors import BrokerError, ApiError
 from .queue import Queue
 from .message import ScheduledMessage
 
@@ -29,84 +30,84 @@ class Client:
         self.endpoint = endpoint
         self.broker_name = broker_name
 
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-agent': 'python-activemq.Client'
+        if username and password:
+            auth = aiohttp.BasicAuth(username, password)
+        else:
+            auth = None
+        self.session = aiohttp.ClientSession(auth=auth, headers={
+            'User-agent': 'activemq-console-parser.Client'
         })
 
-        if username and password:
-            self.session.auth = (username, password)
-
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, *exc):
-        self.close()
+    async def __aexit__(self, *exc):
+        await self.close()
 
-    def close(self):
-        self.session.close()
+    async def close(self):
+        await self.session.close()
 
-    def api(self, type, mbean, **kwargs):
+    async def api(self, type, mbean, **kwargs):
         payload = {
             'type': type,
             'mbean': mbean
         }
         payload.update(kwargs)
 
-        r = self.session.post(f'{self.endpoint}/api/jolokia', json=payload)
-        if r.status_code is not requests.codes.ok:
-            r.raise_for_status()
-        return r.json().get('value')
+        async with self.session.post(f'{self.endpoint}/api/jolokia', json=payload) as r:
+            # jolokia does not set the correct content-type; content_type=None will bypass this check
+            rdata = await r.json(content_type=None)
+            if rdata.get('status') == 200:
+                return rdata.get('value')
+            else:
+                raise ApiError(rdata)
 
-    def web(self, path):
-        r = self.session.get(f'{self.endpoint}{path}', allow_redirects=False)
-        if r.status_code is not requests.codes.ok:
-            r.raise_for_status()
-        return r.text
+    async def web(self, path, **kwargs):
+        async with self.session.get(f'{self.endpoint}{path}', allow_redirects=False, **kwargs) as r:
+            return await r.text()
 
-    def bsoup(self, path):
-        text = self.web(path)
+    async def bsoup(self, path):
+        text = await self.web(path)
         return BeautifulSoup(text, 'lxml')
 
-    def queue_names(self):
-        data = self.api('read', f'org.apache.activemq:brokerName={self.broker_name},type=Broker', attribute='Queues')
+    async def queue_names(self):
+        data = await self.api('read', f'org.apache.activemq:brokerName={self.broker_name},type=Broker', attribute='Queues')
         for queue in data:
             parsed = parse_amq_api_object(queue)
             yield parsed['destinationName']
 
-    def queue(self, name):
-        attributes = [
-            'QueueSize',
-            'EnqueueCount',
-            'DequeueCount',
-            'ConsumerCount'
-        ]
-        data = self.api('read', f'org.apache.activemq:brokerName={self.broker_name},type=Broker,destinationType=Queue,destinationName={name}', attribute=','.join(attributes))
-        if data is None:
-            raise ActiveMQError(f'queue not found: {name}')
-        else:
-            return Queue(
-                client=self,
-                name=name,
-                messages_pending=data['QueueSize'],
-                messages_enqueued=data['EnqueueCount'],
-                messages_dequeued=data['DequeueCount'],
-                consumers=data['ConsumerCount']
-            )
-
-    def queues(self):
-        for name in self.queue_names():
-            yield self.queue(name)
-
-    def queues_count(self):
-        return sum(1 for _ in self.queue_names())
-
-    def scheduled_messages_table(self):
+    async def queue(self, name):
         try:
-            bsoup = self.bsoup('/admin/scheduled.jsp')
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                raise ActiveMQError('scheduled messages not supported')
+            data = await self.api('read', f'org.apache.activemq:brokerName={self.broker_name},type=Broker,destinationType=Queue,destinationName={name}', attributes=[
+                'QueueSize',
+                'EnqueueCount',
+                'DequeueCount',
+                'ConsumerCount'
+            ])
+        except ApiError as e:
+            if e.error_type == 'javax.management.InstanceNotFoundException':
+                raise BrokerError(f'queue not found: {name}')
+            raise e
+
+        return Queue(
+            client=self,
+            name=name,
+            messages_pending=data['QueueSize'],
+            messages_enqueued=data['EnqueueCount'],
+            messages_dequeued=data['DequeueCount'],
+            consumers=data['ConsumerCount']
+        )
+
+    async def queues(self):
+        async for name in self.queue_names():
+            yield await self.queue(name)
+
+    async def scheduled_messages_table(self):
+        try:
+            bsoup = await self.bsoup('/admin/scheduled.jsp')
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                raise BrokerError('scheduled messages not supported')
             else:
                 raise e
 
@@ -115,21 +116,21 @@ class Client:
         if len(table) == 1:
             return table[0]
         else:
-            raise ActiveMQValueError('no queue table was found')
+            raise BrokerError('no queue table was found')
 
-    def scheduled_messages_count(self):
-        return len(self.scheduled_messages_table().find('tbody').find_all('tr'))
+    async def scheduled_messages_count(self):
+        return len((await self.scheduled_messages_table()).find('tbody').find_all('tr'))
 
-    def scheduled_messages(self):
-        for row in self.scheduled_messages_table().find('tbody').find_all('tr'):
+    async def scheduled_messages(self):
+        for row in (await self.scheduled_messages_table()).find('tbody').find_all('tr'):
             yield ScheduledMessage.parse(self, row)
 
-    def connections(self):
+    async def connections(self):
         try:
-            bsoup = self.bsoup('/admin/connections.jsp')
-        except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                raise ActiveMQError('path not supported: /admin/connections.jsp')
+            bsoup = await self.bsoup('/admin/connections.jsp')
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                raise BrokerError('path not supported: /admin/connections.jsp')
             else:
                 raise e
 

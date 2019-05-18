@@ -1,10 +1,7 @@
 import logging
-from datetime import timedelta
+from datetime import datetime
 from uuid import UUID
 
-import requests
-
-from .errors import ActiveMQValueError
 from .message import Message
 
 
@@ -32,21 +29,17 @@ class Queue:
             'consumers': self.consumers
         }
 
-    def purge(self):
-        self.client.api('exec', f'org.apache.activemq:brokerName={self.client.broker_name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='purge')
+    async def purge(self):
+        await self.client.api('exec', f'org.apache.activemq:brokerName={self.client.broker_name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='purge')
 
-    def delete(self):
-        self.client.api('exec', f'org.apache.activemq:type=Broker,brokerName={self.client.broker_name}', operation='removeQueue(java.lang.String)', arguments=[self.name])
+    async def delete(self):
+        await self.client.api('exec', f'org.apache.activemq:type=Broker,brokerName={self.client.broker_name}', operation='removeQueue(java.lang.String)', arguments=[self.name])
 
-    def message_table(self):
-        bsoup = self.client.bsoup(f'/admin/browse.jsp?JMSDestination={self.name}')
-        table = bsoup.find_all('table', {'id': 'messages'})
-
-        if len(table) == 1:
-            return table[0]
-        else:
-            ActiveMQValueError('no message table was found')
-
-    def messages(self):
-        for row in self.message_table().find('tbody').find_all('tr'):
-            yield Message.parse(self, row)
+    async def messages(self):
+        for m in await self.client.api('exec', f'org.apache.activemq:brokerName={self.client.broker_name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='browseMessages()', arguments=[]):
+            yield Message(
+                queue=self,
+                message_id=m.get('jMSMessageID'),
+                persistence=m.get('persistent'),
+                timestamp=datetime.utcfromtimestamp(m.get('jMSTimestamp') / 1000)
+            )
