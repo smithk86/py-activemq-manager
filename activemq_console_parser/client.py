@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from collections import namedtuple
 
 from .errors import BrokerError, ApiError
+from .helpers import yield_from_pool
 from .queue import Queue
 from .message import ScheduledMessage
 
@@ -99,8 +100,8 @@ class Client:
         )
 
     async def queues(self):
-        async for name in self.queue_names():
-            yield await self.queue(name)
+        async for q in yield_from_pool(self.queue_names(), self.queue):
+            yield q
 
     async def scheduled_messages_table(self):
         try:

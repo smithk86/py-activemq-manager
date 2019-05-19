@@ -11,9 +11,10 @@ setup(
     description='gather information about activemq via the web console',
     packages=['activemq_console_parser'],
     install_requires=[
+        'aiohttp',
+        'asyncio-pool',
         'beautifulsoup4',
-        'lxml',
-        'aiohttp'
+        'lxml'
     ],
     classifiers=[
         'Intended Audience :: Developers',

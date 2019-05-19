@@ -1,4 +1,7 @@
+import asyncio
 from datetime import datetime
+
+from asyncio_pool import AioPool
 
 
 def activemq_stamp_datetime(timestamp):
@@ -16,3 +19,28 @@ def activemq_stamp_datetime(timestamp):
         second=int(timestamp[17:19]),
         microsecond=microsecond
     )
+
+
+async def yield_from_pool(aiter_, func, workers=10):
+    loop = asyncio.get_running_loop()
+    pool = AioPool(workers)
+    queues = asyncio.Queue()
+
+    async def add_to_queue(x):
+        q = await func(x)
+        await queues.put(q)
+
+    async def spawner():
+        async for x in aiter_:
+            await pool.spawn(add_to_queue(x))
+        await pool.join()
+        await queues.put(StopAsyncIteration)
+
+    task = loop.create_task(spawner())
+    while True:
+        val = await queues.get()
+        if val is StopAsyncIteration:
+            break
+        else:
+            yield val
+    await task
