@@ -1,6 +1,6 @@
 FROM adoptopenjdk/openjdk11:latest as download
 
-ARG ACTIVEMQ_VERSION=5.15.9
+ARG ACTIVEMQ_VERSION
 
 RUN cd /tmp && \
     curl -o apache-activemq-${ACTIVEMQ_VERSION}-bin.tar.gz https://archive.apache.org/dist/activemq/${ACTIVEMQ_VERSION}/apache-activemq-${ACTIVEMQ_VERSION}-bin.tar.gz && \
@@ -10,7 +10,7 @@ RUN cd /tmp && \
 
 FROM adoptopenjdk/openjdk11:latest
 
-ARG ACTIVEMQ_VERSION=5.15.9
+ARG ACTIVEMQ_VERSION
 
 LABEL activemq.version=${ACTIVEMQ_VERSION}
 

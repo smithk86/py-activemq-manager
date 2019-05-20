@@ -18,7 +18,7 @@ class Queue:
         self.consumers = consumers
 
     def __repr__(self):
-        return f'<activemq_console_parser.queue.Queue object name={self.name}>'
+        return f'<activemq_manager.Queue object name={self.name}>'
 
     def asdict(self):
         return {

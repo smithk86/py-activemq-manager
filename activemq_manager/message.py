@@ -17,7 +17,7 @@ class Message(object):
         self.timestamp = timestamp
 
     def __repr__(self):
-        return f'<activemq_console_parser.message.Message object id={self.message_id}>'
+        return f'<activemq_manager.Message object id={self.message_id}>'
 
     async def delete(self):
         logger.info(f'delete message from {self.queue.name}: {self.message_id}')

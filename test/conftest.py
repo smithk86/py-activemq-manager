@@ -11,7 +11,7 @@ import pytest
 import stomp
 
 import docker_helpers
-from activemq_console_parser import Client
+import activemq_manager
 
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ def stomp_connection(activemq):
 @pytest.yield_fixture(scope='function')
 @pytest.mark.asyncio
 async def console_parser(activemq):
-    client = Client(
+    client = activemq_manager.Client(
         endpoint=f'http://{activemq.address}:{activemq.ports.get("8161/tcp")}',
         username='admin',
         password='admin'

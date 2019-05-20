@@ -38,7 +38,7 @@ class Client:
         })
 
     def __repr__(self):
-        return f'<activemq_console_parser.client.Client object endpoint={self.endpoint}>'
+        return f'<activemq_manager.Client object endpoint={self.endpoint}>'
 
     async def __aenter__(self):
         return self

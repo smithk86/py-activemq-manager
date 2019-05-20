@@ -3,22 +3,28 @@
 from setuptools import setup
 
 setup(
-    name='activemq-console-parser',
+    name='activemq-manager',
     version='2.0.0-dev',
     license='MIT',
     author='Kyle Smith',
     author_email='smithk86@gmail.com',
     description='gather information about activemq via the web console',
-    packages=['activemq_console_parser'],
+    packages=['activemq_manager'],
     install_requires=[
         'aiohttp',
         'asyncio-pool',
         'beautifulsoup4',
         'lxml'
     ],
+    tests_require=[
+        'docker',
+        'pytest',
+        'pytest-asyncio',
+        'stomp.py'
+    ],
     classifiers=[
         'Intended Audience :: Developers',
-        'Programming Language :: Python :: 3.6',
+        'Framework :: AsyncIO',
         'Topic :: Software Development :: Libraries :: Python Modules'
     ]
 )

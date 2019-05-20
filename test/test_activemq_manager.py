@@ -3,7 +3,7 @@ from uuid import UUID
 
 import pytest
 
-from activemq_console_parser import BrokerError, Client, Connection, Queue, Message, MessageData, ScheduledMessage
+from activemq_manager import BrokerError, Client, Connection, Queue, Message, MessageData, ScheduledMessage
 
 
 async def alist(aiter_):
