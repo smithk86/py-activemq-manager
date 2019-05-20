@@ -3,7 +3,7 @@
 from setuptools import setup
 
 setup(
-    name='activemq-manager',
+    name='py-activemq-manager',
     version='2.0.0-dev',
     license='MIT',
     author='Kyle Smith',
