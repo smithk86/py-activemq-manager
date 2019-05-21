@@ -1,4 +1,5 @@
 from .errors import ApiError, BrokerError
-from .client import Client, Connection
-from .queue import Queue
-from .message import Message, MessageData, ScheduledMessage
+from .broker import Broker, Connection
+from .job import ScheduledJob
+from .queue import Queue, QueueData
+from .message import Message, MessageData

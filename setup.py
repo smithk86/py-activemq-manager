@@ -11,10 +11,7 @@ setup(
     description='gather information about activemq via the web console',
     packages=['activemq_manager'],
     install_requires=[
-        'aiohttp',
-        'asyncio-pool',
-        'beautifulsoup4',
-        'lxml'
+        'aiohttp'
     ],
     tests_require=[
         'docker',

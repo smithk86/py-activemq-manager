@@ -19,12 +19,12 @@ ContainerInfo = namedtuple('ContainerInfo', ['address', 'port', 'container'])
 
 
 def pytest_addoption(parser):
-    parser.addoption('--activemq-image', required=True)
+    parser.addoption('--activemq-version', required=True)
 
 
 @pytest.fixture(scope='session')
-def activemq_image(request):
-    return request.config.getoption('--activemq-image')
+def activemq_version(request):
+    return request.config.getoption('--activemq-version')
 
 
 # override the default event_loop fixture
@@ -36,17 +36,18 @@ def event_loop():
 
 
 @pytest.yield_fixture(scope='session')
-def activemq(activemq_image):
+def activemq(activemq_version):
     dir_ = os.path.dirname(os.path.abspath(__file__))
-    # client = docker.from_env()
+    client = docker.from_env()
+    activemq_image = f'test_activemq_manager:{activemq_version}'
 
-    # client.images.build(
-    #     path=f'{dir_}/activemq',
-    #     tag=activemq_image,
-    #     buildargs={
-    #         'ACTIVEMQ_VERSION': activemq_version
-    #     }
-    # )
+    client.images.build(
+        path=f'{dir_}/activemq',
+        tag=activemq_image,
+        buildargs={
+            'ACTIVEMQ_VERSION': activemq_version
+        }
+    )
 
     container_info = docker_helpers.run(activemq_image, ports=['8161/tcp', '61613/tcp'])
     yield container_info
@@ -76,8 +77,8 @@ def stomp_connection(activemq):
 
 @pytest.yield_fixture(scope='function')
 @pytest.mark.asyncio
-async def console_parser(activemq):
-    client = activemq_manager.Client(
+async def broker(activemq):
+    broker_ = activemq_manager.Broker(
         endpoint=f'http://{activemq.address}:{activemq.ports.get("8161/tcp")}',
         username='admin',
         password='admin'
@@ -86,39 +87,39 @@ async def console_parser(activemq):
     logger.debug('waiting for amq web interface')
     while True:
         try:
-            await client.web('/admin/queues.jsp')
+            await broker_.attribute('BrokerVersion')
             break
         except Exception as e:
             sleep(1)
 
-    yield client
-    await client.close()
+    yield broker_
+    await broker_.close()
 
 
 @pytest.mark.asyncio
 @pytest.yield_fixture(scope='function')
-async def load_messages(stomp_connection, console_parser):
-    stomp_connection.send('pytest.queue1', str(uuid4()))
-    stomp_connection.send('pytest.queue2', str(uuid4()))
-    stomp_connection.send('pytest.queue2', str(uuid4()))
-    stomp_connection.send('pytest.queue3', str(uuid4()))
-    stomp_connection.send('pytest.queue3', str(uuid4()))
-    stomp_connection.send('pytest.queue3', str(uuid4()))
-    stomp_connection.send('pytest.queue4', str(uuid4()))
-    stomp_connection.send('pytest.queue4', str(uuid4()))
-    stomp_connection.send('pytest.queue4', str(uuid4()))
-    stomp_connection.send('pytest.queue4', str(uuid4()))
+async def load_messages(stomp_connection, broker):
+    stomp_connection.send('pytest.queue1', str(uuid4()), test_prop='abcd')
+    stomp_connection.send('pytest.queue2', str(uuid4()), test_prop='abcd')
+    stomp_connection.send('pytest.queue2', str(uuid4()), test_prop='abcd')
+    stomp_connection.send('pytest.queue3', str(uuid4()), test_prop='abcd')
+    stomp_connection.send('pytest.queue3', str(uuid4()), test_prop='abcd')
+    stomp_connection.send('pytest.queue3', str(uuid4()), test_prop='abcd')
+    stomp_connection.send('pytest.queue4', str(uuid4()), test_prop='abcd')
+    stomp_connection.send('pytest.queue4', str(uuid4()), test_prop='abcd')
+    stomp_connection.send('pytest.queue4', str(uuid4()), test_prop='abcd')
+    stomp_connection.send('pytest.queue4', str(uuid4()), test_prop='abcd')
     sleep(1)
 
     yield
 
-    async for q in console_parser.queues():
+    async for q in broker.queues():
         await q.delete()
 
 
 @pytest.mark.asyncio
 @pytest.yield_fixture(scope='function')
-async def load_scheduled_messages(stomp_connection, console_parser):
+async def load_jobs(stomp_connection, broker):
     for _ in range(10):
         stomp_connection.send('pytest.queue1', str(uuid4()), headers={
             'AMQ_SCHEDULED_DELAY': 100000000
@@ -127,5 +128,5 @@ async def load_scheduled_messages(stomp_connection, console_parser):
 
     yield
 
-    async for q in console_parser.scheduled_messages():
-        await q.delete()
+    async for job in broker.jobs():
+        await job.delete()
