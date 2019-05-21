@@ -46,6 +46,7 @@ async def test_queues(broker):
         assert type(q.name) is str
         data = await q.data()
         assert type(data) is QueueData
+        assert data.queue is q
         assert type(data.size) is int
         assert type(data.enqueue_count) is int
         assert type(data.dequeue_count) is int
@@ -66,6 +67,19 @@ async def test_queues(broker):
     # test Queue.purge() with queue4
     await (await broker.queue('pytest.queue4')).purge()
     assert (await (await broker.queue('pytest.queue4')).data()).size == 0
+
+
+@pytest.mark.usefixtures('load_messages')
+@pytest.mark.asyncio
+async def test_concurrent_queue_data(broker):
+    data = list()
+    async for qdata in Queue.yield_queue_data_concurrently(broker):
+        data.append(qdata)
+    data = sorted(data, key=lambda x: x.queue.name)
+    assert data[0].queue.name == 'pytest.queue1'
+    assert data[1].queue.name == 'pytest.queue2'
+    assert data[2].queue.name == 'pytest.queue3'
+    assert data[3].queue.name == 'pytest.queue4'
 
 
 @pytest.mark.asyncio

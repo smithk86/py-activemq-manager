@@ -1,4 +1,5 @@
 import logging
+import warnings
 from collections import namedtuple
 from datetime import datetime
 from uuid import UUID
@@ -8,7 +9,7 @@ from .message import Message
 
 
 logger = logging.getLogger(__name__)
-QueueData = namedtuple('QueueData', ['size', 'enqueue_count', 'dequeue_count', 'consumer_count'])
+QueueData = namedtuple('QueueData', ['queue', 'size', 'enqueue_count', 'dequeue_count', 'consumer_count'])
 
 
 class Queue:
@@ -30,6 +31,7 @@ class Queue:
             'ConsumerCount'
         ])
         return QueueData(
+            queue=self,
             size=data.get('QueueSize'),
             enqueue_count=data.get('EnqueueCount'),
             dequeue_count=data.get('DequeueCount'),
@@ -52,3 +54,33 @@ class Queue:
                 properties=m.get('properties'),
                 content=m.get('content')
             )
+
+    @staticmethod
+    async def yield_queue_data_concurrently(broker, workers=10):
+        import asyncio
+        try:
+            from asyncio_pool import AioPool
+        except ModuleNotFoundError:
+            raise RuntimeError('asyncio_pool.AioPool is required to run this method; please do "pip install asyncio-pool" to install it')
+
+        loop = asyncio.get_running_loop()
+        pool = AioPool(workers)
+        queues = asyncio.Queue()
+
+        async def add_to_queue(q):
+            await queues.put(await q.data())
+
+        async def spawner():
+            async for q in broker.queues():
+                await pool.spawn(add_to_queue(q))
+            await pool.join()
+            await queues.put(StopAsyncIteration)
+
+        task = loop.create_task(spawner())
+        while True:
+            val = await queues.get()
+            if val is StopAsyncIteration:
+                break
+            else:
+                yield val
+        await task
