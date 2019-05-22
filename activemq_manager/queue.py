@@ -1,41 +1,52 @@
 import logging
-import warnings
-from collections import namedtuple
 from datetime import datetime
 from uuid import UUID
+
+from asyncinit import asyncinit
 
 from .message import Message
 
 
 logger = logging.getLogger(__name__)
-QueueData = namedtuple('QueueData', ['queue', 'size', 'enqueue_count', 'dequeue_count', 'consumer_count'])
 
 
+@asyncinit
 class Queue:
-    def __init__(self, broker, name):
+    async def __init__(self, broker, name):
         self.broker = broker
         self.name = name
+        self.size = None
+        self.enqueue_count = None
+        self.dequeue_count = None
+        self.consumer_count = None
+        await self.update()
 
     def __repr__(self):
         return f'<activemq_manager.Queue object name={self.name}>'
 
-    async def attribute(self, attribute_):
-            return await self.broker.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},destinationType=Queue,destinationName={self.name}', attribute=attribute_)
-
-    async def data(self):
+    async def update(self):
         data = await self.attribute([
             'QueueSize',
             'EnqueueCount',
             'DequeueCount',
             'ConsumerCount'
         ])
-        return QueueData(
-            queue=self,
-            size=data.get('QueueSize'),
-            enqueue_count=data.get('EnqueueCount'),
-            dequeue_count=data.get('DequeueCount'),
-            consumer_count=data.get('ConsumerCount')
-        )
+        self.size = data.get('QueueSize')
+        self.enqueue_count = data.get('EnqueueCount')
+        self.dequeue_count = data.get('DequeueCount')
+        self.consumer_count = data.get('ConsumerCount')
+
+    def asdict(self):
+        return {
+            'name': self.name,
+            'size': self.size,
+            'enqueue_count': self.enqueue_count,
+            'dequeue_count': self.dequeue_count,
+            'consumer_count': self.consumer_count
+        }
+
+    async def attribute(self, attribute_):
+        return await self.broker.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},destinationType=Queue,destinationName={self.name}', attribute=attribute_)
 
     async def purge(self):
         await self.broker.api('exec', f'org.apache.activemq:brokerName={self.broker.name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='purge')
@@ -53,33 +64,3 @@ class Queue:
                 properties=m.get('properties'),
                 content=m.get('content')
             )
-
-    @staticmethod
-    async def yield_queue_data_concurrently(broker, workers=10):
-        import asyncio
-        try:
-            from asyncio_pool import AioPool
-        except ModuleNotFoundError:
-            raise RuntimeError('asyncio_pool.AioPool is required to run this method; please do "pip install asyncio-pool" to install it')
-
-        loop = asyncio.get_running_loop()
-        pool = AioPool(workers)
-        queues = asyncio.Queue()
-
-        async def add_to_queue(q):
-            await queues.put(await q.data())
-
-        async def spawner():
-            async for q in broker.queues():
-                await pool.spawn(add_to_queue(q))
-            await pool.join()
-            await queues.put(StopAsyncIteration)
-
-        task = loop.create_task(spawner())
-        while True:
-            val = await queues.get()
-            if val is StopAsyncIteration:
-                break
-            else:
-                yield val
-        await task

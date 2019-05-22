@@ -1,21 +1,21 @@
-import asyncio
 import logging
+from collections import namedtuple
 from datetime import datetime, timedelta
+from functools import partial
 
 import aiohttp
-from collections import namedtuple
 
+from .connection import Connection
 from .errors import BrokerError, ApiError
+from .helpers import concurrent_functions
 from .job import ScheduledJob
 from .queue import Queue
 
 
 logger = logging.getLogger(__name__)
 
-Connection = namedtuple('Connection', ['client', 'id', 'remote_address', 'active', 'slow'])
 
-
-def parse_jolokia_path(path):
+def parse_object_name(path):
     parts = dict()
     for part in path.split(','):
         key, val = tuple(part.split('='))
@@ -70,17 +70,21 @@ class Broker:
     async def attribute(self, attribute_):
             return await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name}', attribute=attribute_)
 
-    async def queues(self):
-        queues = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName=*')
-        for queue in queues:
-            name = parse_jolokia_path(queue).get('destinationName')
-            yield Queue(self, name)
+    async def queues(self, workers=10):
+        funcs = list()
+        for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName=*'):
+            queue_name = parse_object_name(object_name).get('destinationName')
+            funcs.append(
+                partial(Queue, self, queue_name)
+            )
+        async for q in concurrent_functions(funcs):
+            yield q
 
     async def queue(self, name):
-        queues = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName={name}')
-        if len(queues) == 1:
-            queue_name = parse_jolokia_path(queues[0]).get('destinationName')
-            return Queue(self, queue_name)
+        queue_objects = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName={name}')
+        if len(queue_objects) == 1:
+            queue_name = parse_object_name(queue_objects[0]).get('destinationName')
+            return await Queue(self, queue_name)
         else:
             raise BrokerError(f'queue not found: {name}')
 
@@ -105,19 +109,11 @@ class Broker:
             yield ScheduledJob.parse(self, data)
 
     async def connections(self):
-        remote_address_search = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},connector=clientConnectors,connectorName=openwire,connectionViewType=remoteAddress,connectionName=*')
-        for remote_address_obj in remote_address_search:
-            connection_name = parse_jolokia_path(remote_address_obj).get('connectionName')
-            remote_address = await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name},connector=clientConnectors,connectorName=openwire,connectionViewType=remoteAddress,connectionName={connection_name}', attribute=[
-                'ClientId',
-                'RemoteAddress',
-                'Active',
-                'Slow'
-            ])
-            yield Connection(
-                client=self,
-                id=remote_address['ClientId'],
-                remote_address=remote_address['RemoteAddress'],
-                active=remote_address['Active'],
-                slow=remote_address['Slow'],
+        funcs = list()
+        for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},connector=clientConnectors,connectorName=openwire,connectionViewType=remoteAddress,connectionName=*'):
+            connection_name = parse_object_name(object_name).get('connectionName')
+            funcs.append(
+                partial(Connection, self, connection_name)
             )
+        async for conn in concurrent_functions(funcs):
+            yield conn

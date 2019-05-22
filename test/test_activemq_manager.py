@@ -3,7 +3,7 @@ from uuid import UUID
 
 import pytest
 
-from activemq_manager import Broker, BrokerError, Connection, Queue, QueueData, Message, MessageData, ScheduledJob
+from activemq_manager import Broker, BrokerError, Connection, Queue, Message, MessageData, ScheduledJob
 
 
 async def alist(aiter_):
@@ -44,19 +44,16 @@ async def test_queues(broker):
         assert type(q) is Queue
         assert type(q.broker) is Broker
         assert type(q.name) is str
-        data = await q.data()
-        assert type(data) is QueueData
-        assert data.queue is q
-        assert type(data.size) is int
-        assert type(data.enqueue_count) is int
-        assert type(data.dequeue_count) is int
-        assert type(data.consumer_count) is int
+        assert type(q.size) is int
+        assert type(q.enqueue_count) is int
+        assert type(q.dequeue_count) is int
+        assert type(q.consumer_count) is int
 
     # assert the number of mesages in each queue
-    assert (await (await broker.queue('pytest.queue1')).data()).size == 1
-    assert (await (await broker.queue('pytest.queue2')).data()).size == 2
-    assert (await (await broker.queue('pytest.queue3')).data()).size == 3
-    assert (await (await broker.queue('pytest.queue4')).data()).size == 4
+    assert (await broker.queue('pytest.queue1')).size == 1
+    assert (await broker.queue('pytest.queue2')).size == 2
+    assert (await broker.queue('pytest.queue3')).size == 3
+    assert (await broker.queue('pytest.queue4')).size == 4
 
     # test Queue.delete() with queue1
     await (await broker.queue('pytest.queue1')).delete()
@@ -66,20 +63,7 @@ async def test_queues(broker):
 
     # test Queue.purge() with queue4
     await (await broker.queue('pytest.queue4')).purge()
-    assert (await (await broker.queue('pytest.queue4')).data()).size == 0
-
-
-@pytest.mark.usefixtures('load_messages')
-@pytest.mark.asyncio
-async def test_concurrent_queue_data(broker):
-    data = list()
-    async for qdata in Queue.yield_queue_data_concurrently(broker):
-        data.append(qdata)
-    data = sorted(data, key=lambda x: x.queue.name)
-    assert data[0].queue.name == 'pytest.queue1'
-    assert data[1].queue.name == 'pytest.queue2'
-    assert data[2].queue.name == 'pytest.queue3'
-    assert data[3].queue.name == 'pytest.queue4'
+    assert (await broker.queue('pytest.queue4')).size == 0
 
 
 @pytest.mark.asyncio
@@ -103,10 +87,10 @@ async def test_messages(broker):
     for _ in range(2):
         msg = await messages.__anext__()
         await msg.delete()
-    test_queue_data = await test_queue.data()
-    assert test_queue_data.size == 2
-    assert test_queue_data.dequeue_count == 2
-    assert test_queue_data.enqueue_count == 4
+    await test_queue.update()
+    assert test_queue.size == 2
+    assert test_queue.dequeue_count == 2
+    assert test_queue.enqueue_count == 4
 
 
 def test_parse_byte_array():
