@@ -1,12 +1,12 @@
-class BaseException(Exception):
+class BrokerError(Exception):
     pass
 
 
-class BrokerError(BaseException):
+class HttpError(BrokerError):
     pass
 
 
-class ApiError(BaseException):
+class ApiError(HttpError):
     def __init__(self, response):
         self.request = response.get('request')
         self.error = response.get('error')

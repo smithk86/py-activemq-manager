@@ -6,7 +6,7 @@ from functools import partial
 import aiohttp
 
 from .connection import Connection
-from .errors import BrokerError, ApiError
+from .errors import ApiError, BrokerError, HttpError
 from .helpers import concurrent_functions
 from .job import ScheduledJob
 from .queue import Queue
@@ -60,12 +60,16 @@ class Broker:
         logger.debug(f'api payload: {payload}')
 
         async with self.session.post(f'{self.endpoint}/api/jolokia', json=payload) as r:
-            # jolokia does not set the correct content-type; content_type=None will bypass this check
-            rdata = await r.json(content_type=None)
-            if rdata.get('status') == 200:
-                return rdata.get('value')
+            if r.status == 200:
+                # jolokia does not set the correct content-type; content_type=None will bypass this check
+                rdata = await r.json(content_type=None)
+                if rdata.get('status') == 200:
+                    return rdata.get('value')
+                else:
+                    raise ApiError(rdata)
             else:
-                raise ApiError(rdata)
+                text = await r.text()
+                raise HttpError(f'http request failed\nstatus_code={r.status}\ntext={text}')
 
     async def attribute(self, attribute_):
             return await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name}', attribute=attribute_)
