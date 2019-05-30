@@ -43,3 +43,11 @@ async def concurrent_functions(list_of_funcs, workers=10):
         else:
             yield val
     await task
+
+
+def parse_object_name(path):
+    parts = dict()
+    for part in path.split(','):
+        key, val = tuple(part.split('='))
+        parts[key] = val
+    return parts

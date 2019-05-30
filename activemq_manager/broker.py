@@ -7,20 +7,12 @@ import aiohttp
 
 from .connection import Connection
 from .errors import ApiError, BrokerError, HttpError
-from .helpers import concurrent_functions
+from .helpers import concurrent_functions, parse_object_name
 from .job import ScheduledJob
 from .queue import Queue
 
 
 logger = logging.getLogger(__name__)
-
-
-def parse_object_name(path):
-    parts = dict()
-    for part in path.split(','):
-        key, val = tuple(part.split('='))
-        parts[key] = val
-    return parts
 
 
 class Broker:
