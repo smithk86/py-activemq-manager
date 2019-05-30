@@ -64,7 +64,7 @@ class Broker:
                 raise HttpError(f'http request failed\nstatus_code={r.status}\ntext={text}')
 
     async def attribute(self, attribute_):
-            return await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name}', attribute=attribute_)
+        return await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name}', attribute=attribute_)
 
     async def _new_queue(self, name):
         return await Queue(self, name)
@@ -109,10 +109,11 @@ class Broker:
 
     async def connections(self):
         funcs = list()
-        for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},connector=clientConnectors,connectorName=openwire,connectionViewType=remoteAddress,connectionName=*'):
-            connection_name = parse_object_name(object_name).get('connectionName')
-            funcs.append(
-                partial(Connection, self, connection_name)
-            )
+        for connection_type in (await self.attribute('TransportConnectors')).keys():
+            for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},connector=clientConnectors,connectorName={connection_type},connectionViewType=remoteAddress,connectionName=*'):
+                connection_name = parse_object_name(object_name).get('connectionName')
+                funcs.append(
+                    partial(Connection, self, connection_name, connection_type)
+                )
         async for conn in concurrent_functions(funcs):
             yield conn

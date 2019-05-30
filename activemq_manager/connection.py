@@ -10,9 +10,10 @@ logger = logging.getLogger(__name__)
 
 @asyncinit
 class Connection:
-    async def __init__(self, broker, name):
+    async def __init__(self, broker, name, type):
         self.broker = broker
         self.name = name
+        self.type = type
         self.client_id = None
         self.remote_address = None
         self.active = None
@@ -37,6 +38,7 @@ class Connection:
     def asdict(self):
         return {
             'name': self.name,
+            'type': self.type,
             'client_id': self.client_id,
             'remote_address': self.remote_address,
             'active': self.active,
@@ -44,4 +46,4 @@ class Connection:
         }
 
     async def attribute(self, attribute_):
-        return await self.broker.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},connector=clientConnectors,connectorName=openwire,connectionViewType=remoteAddress,connectionName={self.name}', attribute=attribute_)
+        return await self.broker.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},connector=clientConnectors,connectorName={self.type},connectionViewType=remoteAddress,connectionName={self.name}', attribute=attribute_)
