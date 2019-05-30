@@ -66,12 +66,15 @@ class Broker:
     async def attribute(self, attribute_):
             return await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name}', attribute=attribute_)
 
+    async def _new_queue(self, name):
+        return await Queue(self, name)
+
     async def queues(self, workers=10):
         funcs = list()
         for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName=*'):
             queue_name = parse_object_name(object_name).get('destinationName')
             funcs.append(
-                partial(Queue, self, queue_name)
+                partial(self._new_queue, queue_name)
             )
         async for q in concurrent_functions(funcs):
             yield q
