@@ -107,13 +107,23 @@ class Broker:
         for data in (await self._jobs()).values():
             yield ScheduledJob.parse(self, data)
 
-    async def connections(self):
-        funcs = list()
+    async def _connections(self):
         for connection_type in (await self.attribute('TransportConnectors')).keys():
             for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},connector=clientConnectors,connectorName={connection_type},connectionViewType=remoteAddress,connectionName=*'):
-                connection_name = parse_object_name(object_name).get('connectionName')
-                funcs.append(
-                    partial(Connection, self, connection_name, connection_type)
-                )
+                yield connection_type, object_name
+
+    async def connection_count(self):
+        count = 0
+        async for _ in self._connections():
+            count += 1
+        return count
+
+    async def connections(self):
+        funcs = list()
+        async for connection_type, object_name in self._connections():
+            connection_name = parse_object_name(object_name).get('connectionName')
+            funcs.append(
+                partial(Connection, self, connection_name, connection_type)
+            )
         async for conn in concurrent_functions(funcs):
             yield conn
