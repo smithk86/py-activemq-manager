@@ -6,27 +6,21 @@ import pytest
 from activemq_manager import Broker, BrokerError, Connection, Queue, Message, MessageData, ScheduledJob
 
 
-async def alist(aiter_):
-    list_ = list()
-    async for x in aiter_:
-        list_.append(x)
-    return list_
-
-
 # these tests cannot be used as STOMP does not keep an open connections
-# @pytest.mark.asyncio
-# @pytest.mark.usefixtures('load_messages')
-# async def test_connections(broker):
-#     connections = await alist(broker.connections())
-#     assert len(connections) > 0
-#     for c in connections:
-#         assert type(c) is Connection
-#         assert type(c.broker) is Broker
-#         assert isinstance(c._asdict(), dict)
-#         assert type(c.id) is str
-#         assert type(c.remote_address) is str
-#         assert type(c.active) is bool
-#         assert type(c.slow) is bool
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('stomp_connection')
+async def test_connections(broker):
+    count = await broker.connection_count()
+    assert count == 1
+    async for c in broker.connections():
+        assert type(c) is Connection
+        assert type(c.broker) is Broker
+        assert isinstance(c.asdict(), dict)
+        assert type(c.name) is str
+        assert type(c.type) is str
+        assert type(c.remote_address) is str
+        assert type(c.active) is bool
+        assert type(c.slow) is bool
 
 
 @pytest.mark.asyncio
