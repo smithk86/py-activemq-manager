@@ -83,7 +83,7 @@ class Broker:
         queue_objects = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName={name}')
         if len(queue_objects) == 1:
             queue_name = parse_object_name(queue_objects[0]).get('destinationName')
-            return await Queue(self, queue_name)
+            return await self._new_queue(queue_name)
         else:
             raise BrokerError(f'queue not found: {name}')
 
