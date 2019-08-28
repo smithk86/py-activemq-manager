@@ -18,29 +18,24 @@ logger = logging.getLogger(__name__)
 class Broker:
     dtformat = '%Y-%m-%d %H:%M:%S'
 
-    def __init__(self, endpoint, name='localhost', username=None, password=None):
+    def __init__(self, endpoint, name='localhost', username=None, password=None, timeout=30):
         self.endpoint = endpoint
         self.name = name
-
-        if username and password:
-            auth = aiohttp.BasicAuth(username, password)
-        else:
-            auth = None
-        self.session = aiohttp.ClientSession(auth=auth, headers={
-            'User-agent': 'activemq-console-parser.Client'
-        })
+        self.http_timeout = aiohttp.ClientTimeout(total=timeout)
+        self.http_auth = aiohttp.BasicAuth(username, password=password) if (username and password) else None
 
     def __repr__(self):
         return f'<activemq_manager.Client object endpoint={self.endpoint}>'
 
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *exc):
-        await self.close()
-
-    async def close(self):
-        await self.session.close()
+    def session(self):
+        return aiohttp.ClientSession(
+            timeout=self.http_timeout,
+            auth=self.http_auth,
+            headers={
+                'User-agent': 'py-activemq-manager.Broker'
+            },
+            raise_for_status=True
+        )
 
     async def api(self, type, mbean, **kwargs):
         payload = {
@@ -50,18 +45,18 @@ class Broker:
         payload.update(kwargs)
 
         logger.debug(f'api payload: {payload}')
-
-        async with self.session.post(f'{self.endpoint}/api/jolokia', json=payload) as r:
-            if r.status == 200:
-                # jolokia does not set the correct content-type; content_type=None will bypass this check
-                rdata = await r.json(content_type=None)
-                if rdata.get('status') == 200:
-                    return rdata.get('value')
+        async with self.session() as session:
+            async with session.post(f'{self.endpoint}/api/jolokia', json=payload) as r:
+                if r.status == 200:
+                    # jolokia does not set the correct content-type; content_type=None will bypass this check
+                    rdata = await r.json(content_type=None)
+                    if rdata.get('status') == 200:
+                        return rdata.get('value')
+                    else:
+                        raise ApiError(rdata)
                 else:
-                    raise ApiError(rdata)
-            else:
-                text = await r.text()
-                raise HttpError(f'http request failed\nstatus_code={r.status}\ntext={text}')
+                    text = await r.text()
+                    raise HttpError(f'http request failed\nstatus_code={r.status}\ntext={text}')
 
     async def attribute(self, attribute_):
         return await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name}', attribute=attribute_)

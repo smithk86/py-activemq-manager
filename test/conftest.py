@@ -75,7 +75,7 @@ def stomp_connection(activemq):
     client.disconnect()
 
 
-@pytest.yield_fixture(scope='function')
+@pytest.fixture(scope='function')
 @pytest.mark.asyncio
 async def broker(activemq):
     broker_ = activemq_manager.Broker(
@@ -92,8 +92,7 @@ async def broker(activemq):
         except Exception as e:
             sleep(1)
 
-    yield broker_
-    await broker_.close()
+    return broker_
 
 
 @pytest.mark.asyncio
