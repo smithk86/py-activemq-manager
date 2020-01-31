@@ -4,16 +4,16 @@ from setuptools import setup
 
 setup(
     name='py-activemq-manager',
-    version='2.2.0',
+    version='2.3.0',
     license='MIT',
     author='Kyle Smith',
     author_email='smithk86@gmail.com',
     description='gather information about activemq via the jolokia api',
     packages=['activemq_manager'],
     install_requires=[
-        'aiohttp',
         'asyncinit',
-        'asyncio-pool'
+        'asyncio-pool',
+        'httpx==0.11.1'
     ],
     tests_require=[
         'docker',
