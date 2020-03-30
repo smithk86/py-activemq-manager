@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='py-activemq-manager',
-    version='2.3.0',
+    version='2.3.1',
     license='MIT',
     author='Kyle Smith',
     author_email='smithk86@gmail.com',
@@ -13,7 +13,7 @@ setup(
     install_requires=[
         'asyncinit',
         'asyncio-pool',
-        'httpx==0.11.1'
+        'httpx==0.12.1'
     ],
     tests_require=[
         'docker',

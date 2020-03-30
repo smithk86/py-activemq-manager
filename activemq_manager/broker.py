@@ -38,7 +38,7 @@ class Broker:
         async with httpx.AsyncClient(auth=self.http_auth, timeout=self.timeout) as client:
             try:
                 r = await client.post(f'{self.endpoint}/api/jolokia', json=payload)
-            except httpx.exceptions.NetworkError as e:
+            except httpx.NetworkError as e:
                 logger.exception(e)
                 raise HttpError('api call failed')
 
