@@ -50,7 +50,7 @@ class Broker:
                 else:
                     raise ApiError(rdata)
             else:
-                text = await r.text()
+                text = r.text()
                 raise HttpError(f'http request failed\nstatus_code={r.status}\ntext={text}')
 
     async def attribute(self, attribute_):
