@@ -80,6 +80,7 @@ def stomp_connection(activemq):
 async def broker(activemq):
     broker_ = activemq_manager.Broker(
         endpoint=f'http://{activemq.address}:{activemq.ports.get("8161/tcp")}',
+        origin='http://pytest:80',
         username='admin',
         password='admin'
     )

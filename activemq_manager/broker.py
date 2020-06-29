@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 class Broker:
     dtformat = '%Y-%m-%d %H:%M:%S'
 
-    def __init__(self, endpoint, name='localhost', username=None, password=None, timeout=30):
+    def __init__(self, endpoint, origin='http://localhost:80', name='localhost', username=None, password=None, timeout=30):
         self.endpoint = endpoint
+        self.origin = origin
         self.name = name
         self.timeout = timeout
         self.http_auth = httpx.BasicAuth(username, password=password) if (username and password) else None
@@ -35,7 +36,10 @@ class Broker:
         payload.update(kwargs)
 
         logger.debug(f'api payload: {payload}')
-        async with httpx.AsyncClient(auth=self.http_auth, timeout=self.timeout) as client:
+        headers = {
+            'Origin': self.origin
+        }
+        async with httpx.AsyncClient(auth=self.http_auth, headers=headers, timeout=self.timeout) as client:
             try:
                 r = await client.post(f'{self.endpoint}/api/jolokia', json=payload)
             except httpx.NetworkError as e:
