@@ -4,10 +4,11 @@ from datetime import datetime, timedelta
 from functools import partial
 
 import httpx
+from asyncio_concurrent_functions import AsyncioConcurrentFunctions
 
 from .connection import Connection
 from .errors import ApiError, BrokerError, HttpError
-from .helpers import concurrent_functions, parse_object_name
+from .helpers import parse_object_name
 from .job import ScheduledJob
 from .queue import Queue
 
@@ -70,7 +71,7 @@ class Broker:
             funcs.append(
                 partial(self._new_queue, queue_name)
             )
-        async for q in concurrent_functions(funcs):
+        async for q in AsyncioConcurrentFunctions(funcs):
             yield q
 
     async def queue(self, name):
@@ -119,5 +120,5 @@ class Broker:
             funcs.append(
                 partial(Connection, self, connection_name, connection_type)
             )
-        async for conn in concurrent_functions(funcs):
+        async for conn in AsyncioConcurrentFunctions(funcs):
             yield conn
