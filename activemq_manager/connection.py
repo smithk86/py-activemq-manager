@@ -2,15 +2,12 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-from asyncinit import asyncinit
-
 
 logger = logging.getLogger(__name__)
 
 
-@asyncinit
 class Connection:
-    async def __init__(self, broker, name, type):
+    def __init__(self, broker, name, type):
         self.broker = broker
         self.name = name
         self.type = type
@@ -18,7 +15,12 @@ class Connection:
         self.remote_address = None
         self.active = None
         self.slow = None
-        await self.update()
+
+    @staticmethod
+    async def new(broker, name, type):
+        c = Connection(broker, name, type)
+        await c.update()
+        return c
 
     def __repr__(self):
         return f'<activemq_manager.Connection object name={self.name}>'

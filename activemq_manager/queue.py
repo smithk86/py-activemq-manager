@@ -2,24 +2,26 @@ import logging
 from datetime import datetime
 from uuid import UUID
 
-from asyncinit import asyncinit
-
 from .message import Message
 
 
 logger = logging.getLogger(__name__)
 
 
-@asyncinit
 class Queue:
-    async def __init__(self, broker, name):
+    def __init__(self, broker, name):
         self.broker = broker
         self.name = name
         self.size = None
         self.enqueue_count = None
         self.dequeue_count = None
         self.consumer_count = None
-        await self.update()
+
+    @staticmethod
+    async def new(broker, name):
+        q = Queue(broker, name)
+        await q.update()
+        return q
 
     def __repr__(self):
         return f'<activemq_manager.Queue object name={self.name}>'

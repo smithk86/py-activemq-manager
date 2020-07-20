@@ -22,7 +22,6 @@ setup(
     description='gather information about activemq via the jolokia api',
     packages=['activemq_manager'],
     install_requires=[
-        'asyncinit',
         'asyncio-concurrent-functions',
         'asyncio-pool',
         'httpx==0.12.1'

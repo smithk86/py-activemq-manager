@@ -61,15 +61,12 @@ class Broker:
     async def attribute(self, attribute_):
         return await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name}', attribute=attribute_)
 
-    async def _new_queue(self, name):
-        return await Queue(self, name)
-
     async def queues(self, workers=10):
         funcs = list()
         for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName=*'):
             queue_name = parse_object_name(object_name).get('destinationName')
             funcs.append(
-                partial(self._new_queue, queue_name)
+                partial(Queue.new, self, queue_name)
             )
         async for q in AsyncioConcurrentFunctions(funcs):
             yield q
@@ -78,7 +75,7 @@ class Broker:
         queue_objects = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName={name}')
         if len(queue_objects) == 1:
             queue_name = parse_object_name(queue_objects[0]).get('destinationName')
-            return await self._new_queue(queue_name)
+            return await Queue.new(self, queue_name)
         else:
             raise BrokerError(f'queue not found: {name}')
 
@@ -118,7 +115,7 @@ class Broker:
         async for connection_type, object_name in self._connections():
             connection_name = parse_object_name(object_name).get('connectionName')
             funcs.append(
-                partial(Connection, self, connection_name, connection_type)
+                partial(Connection.new, self, connection_name, connection_type)
             )
         async for conn in AsyncioConcurrentFunctions(funcs):
             yield conn
