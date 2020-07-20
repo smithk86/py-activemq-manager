@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 class Broker:
     dtformat = '%Y-%m-%d %H:%M:%S'
+    queue_object = Queue
+    connection_object = Connection
 
     def __init__(self, endpoint, origin='http://localhost:80', name='localhost', username=None, password=None, timeout=30):
         self.endpoint = endpoint
@@ -66,7 +68,7 @@ class Broker:
         for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName=*'):
             queue_name = parse_object_name(object_name).get('destinationName')
             funcs.append(
-                partial(Queue.new, self, queue_name)
+                partial(Broker.queue_object.new, self, queue_name)
             )
         async for q in AsyncioConcurrentFunctions(funcs):
             yield q
@@ -75,7 +77,7 @@ class Broker:
         queue_objects = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName={name}')
         if len(queue_objects) == 1:
             queue_name = parse_object_name(queue_objects[0]).get('destinationName')
-            return await Queue.new(self, queue_name)
+            return await Broker.queue_object.new(self, queue_name)
         else:
             raise BrokerError(f'queue not found: {name}')
 
@@ -115,7 +117,7 @@ class Broker:
         async for connection_type, object_name in self._connections():
             connection_name = parse_object_name(object_name).get('connectionName')
             funcs.append(
-                partial(Connection.new, self, connection_name, connection_type)
+                partial(Broker.connection_object.new, self, connection_name, connection_type)
             )
         async for conn in AsyncioConcurrentFunctions(funcs):
             yield conn
