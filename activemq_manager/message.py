@@ -1,6 +1,8 @@
 import logging
 from collections import namedtuple, OrderedDict
 
+import dateparser
+
 from .errors import BrokerError
 
 
@@ -9,39 +11,43 @@ MessageData = namedtuple('MessageData', ['header', 'properties', 'message'])
 
 
 class Message(object):
-    def __init__(self, queue, message_id, persistence, timestamp, properties, content):
+    def __init__(self, queue, data):
         self.queue = queue
-        self.message_id = message_id
-        self.persistence = persistence
-        self.timestamp = timestamp
-        self._properties = properties
-        self._content = content
+        self._data = data
 
     def __repr__(self):
-        return f'<activemq_manager.Message object id={self.message_id}>'
+        return f'<activemq_manager.Message object id={self.id}>'
 
-    async def attribute(self, attribute_):
-            return await self.broker.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},destinationType=Queue,destinationName={self.name}', attribute=attribute_)
+    @property
+    def id(self):
+        return self._data['JMSMessageID']
+
+    @property
+    def timestamp(self):
+        return dateparser.parse(self._data['JMSTimestamp'])
+
+    @property
+    def persistent(self):
+        return self._data['JMSDeliveryMode'] == 'PERSISTENT'
 
     @property
     def properties(self):
-        props = dict()
-        for key, value in self._properties.items():
-            if Message.is_byte_array(value):
-                props[key] = Message.parse_byte_array(value)
-            else:
-                props[key] = value
-        return props
+        return self._data['StringProperties']
 
-    @property
-    def content(self):
-        if self._content is None:
-            return None
-        return Message.parse_byte_array(self._content)
+    async def data(self):
+        api_response = await self.queue.broker.api('exec', f'org.apache.activemq:brokerName={self.queue.broker.name},type=Broker,destinationType=Queue,destinationName={self.queue.name}', operation='browseMessages(java.lang.String)', arguments=[f"JMSMessageID = '{self.id}'"])
+        if len(api_response) == 1:
+            return api_response[0]
+        else:
+            raise BrokerError(f'only one message should have been return [count={len(api_response)}]')
+
+    async def text(self):
+        data = await self.data()
+        return Message.parse_byte_array(data['content'])
 
     async def delete(self):
-        logger.info(f'delete message from {self.queue.name}: {self.message_id}')
-        await self.queue.broker.api('exec', f'org.apache.activemq:brokerName={self.queue.broker.name},type=Broker,destinationType=Queue,destinationName={self.queue.name}', operation='removeMessage(java.lang.String)', arguments=[self.message_id])
+        logger.info(f'delete message from {self.queue.name}: {self.id}')
+        await self.queue.broker.api('exec', f'org.apache.activemq:brokerName={self.queue.broker.name},type=Broker,destinationType=Queue,destinationName={self.queue.name}', operation='removeMessage(java.lang.String)', arguments=[self.id])
 
     @staticmethod
     def parse_byte_array(data):

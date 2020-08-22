@@ -1,6 +1,13 @@
+# add the project directory to the pythonpath
+import os.path
+import sys
+from pathlib import Path
+dir_ = Path(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, str(dir_.parent))
+
+
 import asyncio
 import logging
-import os.path
 import socket
 from collections import namedtuple
 from time import sleep
@@ -67,7 +74,7 @@ def stomp_connection(activemq):
         try:
             client.connect(wait=True)
             break
-        except (stomp.exception.ConnectFailedException, stomp.exception.NotConnectedException):
+        except (OSError, stomp.exception.ConnectFailedException, stomp.exception.NotConnectedException):
             logger.debug('stomp connect failed...retry in 1s')
             sleep(1)
 
@@ -98,17 +105,20 @@ async def broker(activemq):
 
 @pytest.mark.asyncio
 @pytest.yield_fixture(scope='function')
-async def load_messages(stomp_connection, broker):
-    stomp_connection.send('pytest.queue1', str(uuid4()), test_prop='abcd')
-    stomp_connection.send('pytest.queue2', str(uuid4()), test_prop='abcd')
-    stomp_connection.send('pytest.queue2', str(uuid4()), test_prop='abcd')
-    stomp_connection.send('pytest.queue3', str(uuid4()), test_prop='abcd')
-    stomp_connection.send('pytest.queue3', str(uuid4()), test_prop='abcd')
-    stomp_connection.send('pytest.queue3', str(uuid4()), test_prop='abcd')
-    stomp_connection.send('pytest.queue4', str(uuid4()), test_prop='abcd')
-    stomp_connection.send('pytest.queue4', str(uuid4()), test_prop='abcd')
-    stomp_connection.send('pytest.queue4', str(uuid4()), test_prop='abcd')
-    stomp_connection.send('pytest.queue4', str(uuid4()), test_prop='abcd')
+async def load_messages(stomp_connection, broker, lorem_ipsum):
+    with open(f'{dir_}/files/lorem_ipsum.json') as fh:
+        lorem_ipsum = fh.read()
+
+    stomp_connection.send('pytest.queue1', str(uuid4()), test_prop1='abcd', test_prop2=3.14159)
+    stomp_connection.send('pytest.queue2', str(uuid4()), test_prop1='abcd', test_prop2=3.14159)
+    stomp_connection.send('pytest.queue2', str(uuid4()), test_prop1='abcd', test_prop2=3.14159)
+    stomp_connection.send('pytest.queue3', str(uuid4()), test_prop1='abcd', test_prop2=3.14159)
+    stomp_connection.send('pytest.queue3', str(uuid4()), test_prop1='abcd', test_prop2=3.14159)
+    stomp_connection.send('pytest.queue3', str(uuid4()), test_prop1='abcd', test_prop2=3.14159)
+    stomp_connection.send('pytest.queue4', lorem_ipsum,  test_prop1='abcd', test_prop2=3.14159)
+    stomp_connection.send('pytest.queue4', lorem_ipsum,  test_prop1='abcd', test_prop2=3.14159)
+    stomp_connection.send('pytest.queue4', lorem_ipsum,  test_prop1='abcd', test_prop2=3.14159, headers={'persistent': 'true'})
+    stomp_connection.send('pytest.queue4', lorem_ipsum,  test_prop1='abcd', test_prop2=3.14159, headers={'persistent': 'true'})
     sleep(1)
 
     yield
@@ -130,3 +140,9 @@ async def load_jobs(stomp_connection, broker):
 
     async for job in broker.jobs():
         await job.delete()
+
+
+@pytest.yield_fixture(scope='session')
+async def lorem_ipsum():
+    with open(f'{dir_}/files/lorem_ipsum.json') as fh:
+        return fh.read()

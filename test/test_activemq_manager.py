@@ -62,24 +62,26 @@ async def test_queues(broker):
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('load_messages')
-async def test_messages(broker):
+async def test_messages(broker, lorem_ipsum):
     test_queue = await broker.queue('pytest.queue4')
 
     # validate all messages
-    async for m in test_queue.messages():
+    for m in await test_queue.messages():
         assert type(m) is Message
-        assert type(m.message_id) is str
-        assert type(m.persistence) is bool
+        assert type(m.id) is str
+        assert type(m.persistent) is bool
         assert type(m.timestamp) is datetime
         assert type(m.properties) is dict
-        assert m.properties.get('test_prop') == 'abcd'
-        assert type(m.content) is str
-        UUID(m.content)  # ensure the message is a uuid
+        assert m.properties.get('test_prop1') == 'abcd'
+        assert m.properties.get('test_prop2') == '3.14159'
+        message_test = await m.text()
+        assert type(message_test) is str
+        assert message_test == lorem_ipsum
 
     # test Message.delete()
-    messages = test_queue.messages()
+    messages = iter(await test_queue.messages())
     for _ in range(2):
-        msg = await messages.__anext__()
+        msg = next(messages)
         await msg.delete()
     await test_queue.update()
     assert test_queue.size == 2

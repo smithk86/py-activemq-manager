@@ -57,12 +57,5 @@ class Queue:
         await self.broker.api('exec', f'org.apache.activemq:type=Broker,brokerName={self.broker.name}', operation='removeQueue(java.lang.String)', arguments=[self.name])
 
     async def messages(self):
-        for m in await self.broker.api('exec', f'org.apache.activemq:brokerName={self.broker.name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='browseMessages()', arguments=[]):
-            yield Message(
-                queue=self,
-                message_id=m.get('jMSMessageID'),
-                persistence=m.get('persistent'),
-                timestamp=datetime.utcfromtimestamp(m.get('jMSTimestamp') / 1000),
-                properties=m.get('properties'),
-                content=m.get('content')
-            )
+        message_table = await self.broker.api('exec', f'org.apache.activemq:brokerName={self.broker.name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='browseAsTable()', arguments=[])
+        return [Message(queue=self, data=data) for data in message_table.values()]
