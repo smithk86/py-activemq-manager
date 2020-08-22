@@ -43,7 +43,12 @@ class Message(object):
 
     async def text(self):
         data = await self.data()
-        return Message.parse_byte_array(data['content'])
+        if 'text' in data:
+            return data['text']
+        elif 'content' in data:
+            return Message.parse_byte_array(data['content'])
+        else:
+            raise BrokerError(f'cannot parse message content from {data}')
 
     async def delete(self):
         logger.info(f'delete message from {self.queue.name}: {self.id}')
