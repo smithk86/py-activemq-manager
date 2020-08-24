@@ -15,7 +15,6 @@ async def test_connections(broker):
     async for c in broker.connections():
         assert type(c) is Connection
         assert type(c.broker) is Broker
-        assert isinstance(c.asdict(), dict)
         assert type(c.name) is str
         assert type(c.type) is str
         assert type(c.remote_address) is str

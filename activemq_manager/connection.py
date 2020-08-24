@@ -37,15 +37,5 @@ class Connection:
         self.active = data.get('Active')
         self.slow = data.get('Slow')
 
-    def asdict(self):
-        return {
-            'name': self.name,
-            'type': self.type,
-            'client_id': self.client_id,
-            'remote_address': self.remote_address,
-            'active': self.active,
-            'slow': self.slow
-        }
-
     async def attribute(self, attribute_):
         return await self.broker.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},connector=clientConnectors,connectorName={self.type},connectionViewType=remoteAddress,connectionName={self.name}', attribute=attribute_)

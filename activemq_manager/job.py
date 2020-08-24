@@ -17,14 +17,6 @@ class ScheduledJob(object):
     def __repr__(self):
         return f'<activemq_manager.ScheduledJobs object id={self.job_id}>'
 
-    def asdict(self):
-        return {
-            'job_id': self.job_id,
-            'start': self.start,
-            'next': self.next,
-            'delay': self.delay
-        }
-
     @staticmethod
     def parse(broker, data):
         return ScheduledJob(
