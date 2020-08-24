@@ -50,7 +50,6 @@ class Broker:
                 raise HttpError('api call failed')
 
             if r.status_code == 200:
-                # jolokia does not set the correct content-type; content_type=None will bypass this check
                 rdata = r.json()
                 if rdata.get('status') == 200:
                     return rdata.get('value')
