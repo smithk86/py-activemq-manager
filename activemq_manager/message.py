@@ -11,16 +11,13 @@ MessageData = namedtuple('MessageData', ['header', 'properties', 'message'])
 
 
 class Message(object):
-    def __init__(self, queue, data):
+    def __init__(self, queue, id, data):
         self.queue = queue
+        self.id = id
         self._data = data
 
     def __repr__(self):
         return f'<activemq_manager.Message object id={self.id}>'
-
-    @property
-    def id(self):
-        return self._data['JMSMessageID']
 
     @property
     def timestamp(self):
