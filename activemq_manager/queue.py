@@ -56,6 +56,15 @@ class Queue:
     async def delete(self):
         await self.broker.api('exec', f'org.apache.activemq:type=Broker,brokerName={self.broker.name}', operation='removeQueue(java.lang.String)', arguments=[self.name])
 
-    async def messages(self):
-        message_table = await self.broker.api('exec', f'org.apache.activemq:brokerName={self.broker.name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='browseAsTable()', arguments=[])
-        return [Message(queue=self, data=data) for data in message_table.values()]
+    async def messages(self, selector=None):
+        if selector:
+            message_table = await self.broker.api('exec', f'org.apache.activemq:brokerName={self.broker.name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='browseAsTable(java.lang.String)', arguments=[selector])
+        else:
+            message_table = await self.broker.api('exec', f'org.apache.activemq:brokerName={self.broker.name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='browseAsTable()', arguments=[])
+
+        # check and potentially warn if the number of messages returned is less than the total queue size
+        await self.update()
+        if self.size > len(message_table):
+            logger.warning(f'queue size is greater than the returned number of messages [qsize={self.size}, message={len(message_table)}]; use a selector to reduce the total number of messages')
+
+        return [Message(queue=self, id=id, data=data) for id, data in message_table.items()]
