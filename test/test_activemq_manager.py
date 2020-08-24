@@ -133,7 +133,7 @@ async def test_jobs(broker, stomp_connection):
     async for j in broker.jobs():
         assert type(j) is ScheduledJob
         assert type(j.broker) is Broker
-        assert type(j.job_id) is str
+        assert type(j.id) is str
         assert type(j.next) is datetime
         assert type(j.start) is datetime
         assert type(j.delay) is int

@@ -42,8 +42,8 @@ class Queue:
     def consumer_count(self):
         return self._attributes['ConsumerCount']
 
-    async def attributes(self):
-        return await self.broker.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},destinationType=Queue,destinationName={self.name}')
+    async def attributes(self, attribute=None):
+        return await self.broker.api('read', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},destinationType=Queue,destinationName={self.name}', attribute=attribute)
 
     async def purge(self):
         await self.broker.api('exec', f'org.apache.activemq:brokerName={self.broker.name},type=Broker,destinationType=Queue,destinationName={self.name}', operation='purge')

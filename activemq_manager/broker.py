@@ -99,7 +99,7 @@ class Broker:
 
     async def jobs(self, start=None, end=None):
         for data in (await self._jobs()).values():
-            yield ScheduledJob.parse(self, data)
+            yield ScheduledJob(self, data['jobId'], data)
 
     async def _connections(self):
         for connection_type in (await self.attribute('TransportConnectors')).keys():
