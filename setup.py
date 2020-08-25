@@ -24,6 +24,7 @@ setup(
     install_requires=[
         'asyncio-concurrent-functions',
         'asyncio-pool',
+        'dateparser',
         'httpx==0.12.1'
     ],
     tests_require=[
