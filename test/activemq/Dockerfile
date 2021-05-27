@@ -17,6 +17,10 @@ LABEL activemq.version=${ACTIVEMQ_VERSION}
 COPY --from=download /tmp/apache-activemq/ /usr/local/apache-activemq/
 COPY activemq.xml /usr/local/apache-activemq/conf/activemq.xml
 
+# allow jetty/console to listen on all addresses
+RUN echo "\n" >> /usr/local/apache-activemq/bin/env && \
+    echo 'ACTIVEMQ_SUNJMX_START="${ACTIVEMQ_SUN_START} -Djetty.host=0.0.0.0 -Djetty.port=8161"' >> /usr/local/apache-activemq/bin/env
+
 EXPOSE 61616
 EXPOSE 5672
 EXPOSE 61613

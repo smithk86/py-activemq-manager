@@ -21,6 +21,7 @@ import docker_helpers
 import activemq_manager
 
 
+#logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 ContainerInfo = namedtuple('ContainerInfo', ['address', 'port', 'container'])
 
@@ -42,7 +43,7 @@ def event_loop():
     loop.close()
 
 
-@pytest.yield_fixture(scope='session')
+@pytest.fixture(scope='session')
 def activemq(activemq_version):
     dir_ = os.path.dirname(os.path.abspath(__file__))
     client = docker.from_env()
@@ -61,7 +62,7 @@ def activemq(activemq_version):
     container_info.container.stop()
 
 
-@pytest.yield_fixture(scope='function')
+@pytest.fixture(scope='function')
 def stomp_connection(activemq):
     client = stomp.Connection(
         host_and_ports=[
@@ -104,7 +105,7 @@ async def broker(activemq):
 
 
 @pytest.mark.asyncio
-@pytest.yield_fixture(scope='function')
+@pytest.fixture(scope='function')
 async def load_messages(stomp_connection, broker, lorem_ipsum):
     with open(f'{dir_}/files/lorem_ipsum.json') as fh:
         lorem_ipsum = fh.read()
@@ -128,7 +129,7 @@ async def load_messages(stomp_connection, broker, lorem_ipsum):
 
 
 @pytest.mark.asyncio
-@pytest.yield_fixture(scope='function')
+@pytest.fixture(scope='function')
 async def load_jobs(stomp_connection, broker):
     for _ in range(10):
         stomp_connection.send('pytest.queue1', str(uuid4()), headers={
@@ -142,7 +143,7 @@ async def load_jobs(stomp_connection, broker):
         await job.delete()
 
 
-@pytest.yield_fixture(scope='session')
+@pytest.fixture(scope='session')
 async def lorem_ipsum():
     with open(f'{dir_}/files/lorem_ipsum.json') as fh:
         return fh.read()
