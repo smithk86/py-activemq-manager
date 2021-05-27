@@ -49,7 +49,7 @@ class Message(object):
 
     async def delete(self):
         logger.info(f'delete message from {self.queue.name}: {self.id}')
-        await self.queue.broker.api('exec', f'org.apache.activemq:brokerName={self.queue.broker.name},type=Broker,destinationType=Queue,destinationName={self.queue.name}', operation='removeMessage(java.lang.String)', arguments=[self.id])
+        return await self.queue.broker.api('exec', f'org.apache.activemq:brokerName={self.queue.broker.name},type=Broker,destinationType=Queue,destinationName={self.queue.name}', operation='removeMessage(java.lang.String)', arguments=[self.id])
 
     @staticmethod
     def parse_byte_array(data):
