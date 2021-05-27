@@ -51,6 +51,10 @@ class Message(object):
         logger.info(f'delete message from {self.queue.name}: {self.id}')
         return await self.queue.broker.api('exec', f'org.apache.activemq:brokerName={self.queue.broker.name},type=Broker,destinationType=Queue,destinationName={self.queue.name}', operation='removeMessage(java.lang.String)', arguments=[self.id])
 
+    async def retry(self):
+        logger.info(f'retrying message from {self.queue.name}: {self.id}')
+        return await self.queue.broker.api('exec', f'org.apache.activemq:brokerName={self.queue.broker.name},type=Broker,destinationType=Queue,destinationName={self.queue.name}', operation='retryMessage(java.lang.String)', arguments=[self.id])
+
     async def move(self, target_queue):
         logger.info(f'moving message from {self.queue.name} to {target_queue}: {self.id}')
         return await self.queue.broker.api('exec', f'org.apache.activemq:brokerName={self.queue.broker.name},type=Broker,destinationType=Queue,destinationName={self.queue.name}', operation='moveMessageTo(java.lang.String, java.lang.String)', arguments=[self.id, target_queue])
