@@ -88,6 +88,28 @@ async def test_messages(broker, lorem_ipsum):
     assert test_queue.enqueue_count == 4
 
 
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('load_messages')
+async def test_message_move(broker, stomp_connection, lorem_ipsum):
+    # add the message to the queue and get the message object for it
+    stomp_connection.send('pytest.queue_move_source', lorem_ipsum)
+    source_queue = await broker.queue('pytest.queue_move_source')
+    messages = await source_queue.messages()
+    assert len(messages) == 1
+    source_message = messages[0]
+
+    # move the message to another queue
+    await messages[0].move('pytest.queue_move_target')
+
+    # verify the message was moved
+    target_queue = await broker.queue('pytest.queue_move_target')
+    messages = await target_queue.messages()
+    assert len(messages) == 1
+    target_message = messages[0]
+
+    assert source_message.id == target_message.id
+
+
 def test_parse_byte_array():
     value = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent consectetur dictum leo, et euismod sem fermentum in. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Integer rhoncus quam vitae elit ullamcorper ultricies. Mauris a elit metus. Quisque in purus non ipsum vestibulum suscipit. Sed mattis ornare ante, non rutrum nisl tristique non. Ut finibus mattis arcu sit amet convallis. Ut rhoncus augue tortor, at commodo libero consequat eu. Aenean ligula orci, malesuada non tellus nec, dictum bibendum lacus. Fusce in nunc lacinia, condimentum dolor sed, mollis turpis.'
     value_byte_array = {
