@@ -1,7 +1,7 @@
 import sys
 
 
-__VERSION__ = '2.4.2-rc0'
+__VERSION__ = '2.4.2-rc1'
 __DATE__ = '2021-07-22'
 __MIN_PYTHON__ = (3, 7)
 

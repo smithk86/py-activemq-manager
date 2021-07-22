@@ -22,7 +22,7 @@ setup(
     description='gather information about activemq via the jolokia api',
     packages=['activemq_manager'],
     install_requires=[
-        'git+https://github.com/smithk86/asyncio-concurrent-functions',
+        'asyncio-concurrent-functions',
         'asyncio-pool',
         'dateparser',
         'httpx'
