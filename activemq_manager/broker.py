@@ -111,12 +111,18 @@ class Broker:
             count += 1
         return count
 
-    async def connections(self):
-        funcs = list()
+    async def connections(self, update_attributes=True):
+        _connections = list()
         async for connection_type, object_name in self._connections():
             connection_name = parse_object_name(object_name).get('connectionName')
-            funcs.append(
-                partial(Broker.connection_object.new, self, connection_name, connection_type)
-            )
-        async for conn in AsyncioConcurrentFunctions(funcs):
-            yield conn
+            _connections.append(Broker.connection_object(self, connection_name, connection_type))
+
+        if update_attributes is True:
+            funcs = list()
+            for conn in _connections:
+                funcs.append(conn.update)
+            async for conn in AsyncioConcurrentFunctions(funcs):
+                yield conn
+        else:
+            for conn in _connections:
+                yield conn
