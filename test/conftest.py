@@ -57,16 +57,15 @@ def activemq(activemq_version):
         }
     )
 
-    container_info = docker_helpers.run(activemq_image, ports=['8161/tcp', '61613/tcp'])
-    yield container_info
-    container_info.container.stop()
+    with docker_helpers.run(activemq_image, ports=['8161/tcp', '61613/tcp']) as container_info:
+        yield container_info
 
 
 @pytest.fixture(scope='function')
 def stomp_connection(activemq):
     client = stomp.Connection(
         host_and_ports=[
-            (activemq.address, activemq.ports.get('61613/tcp'))
+            ('localhost', activemq.ports.get('61613/tcp'))
         ]
     )
 
@@ -87,7 +86,7 @@ def stomp_connection(activemq):
 @pytest.mark.asyncio
 async def broker(activemq):
     broker_ = activemq_manager.Broker(
-        endpoint=f'http://{activemq.address}:{activemq.ports.get("8161/tcp")}',
+        endpoint=f'http://localhost:{activemq.ports.get("8161/tcp")}',
         origin='http://pytest:80',
         username='admin',
         password='admin'
