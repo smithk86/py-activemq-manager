@@ -1,5 +1,4 @@
 anyio==3.3.4
-asyncio-concurrent-functions @ git+https://github.com/smithk86/asyncio-concurrent-functions@6f35ccf73eba8e75d7fa6afea299ca3eab84e1b5
 asyncio-pool==0.5.2
 attrs==21.2.0
 certifi==2021.10.8

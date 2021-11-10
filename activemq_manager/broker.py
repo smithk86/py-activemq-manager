@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from functools import partial
 
 import httpx
-from asyncio_concurrent_functions import AsyncioConcurrentFunctions
+from asyncio_pool import AioPool
 
 from .connection import Connection
 from .errors import ApiError, BrokerError, HttpError
@@ -21,11 +21,12 @@ class Broker:
     queue_object = Queue
     connection_object = Connection
 
-    def __init__(self, endpoint, origin='http://localhost:80', name='localhost', username=None, password=None, timeout=30):
+    def __init__(self, endpoint, origin='http://localhost:80', name='localhost', username=None, password=None, timeout=30, workers=10):
         self.endpoint = endpoint
         self.origin = origin
         self.name = name
         self.timeout = timeout
+        self._pool = AioPool(workers)
         self.http_auth = httpx.BasicAuth(username, password=password) if (username and password) else None
 
     def __repr__(self):
@@ -63,14 +64,17 @@ class Broker:
         return await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name}', attribute=attribute_)
 
     async def queues(self, workers=10):
-        funcs = list()
+        async def _worker(queue_name):
+            return await self.queue_object.new(self, queue_name)
+
+        _queue_names = list()
         for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName=*'):
             queue_name = parse_object_name(object_name).get('destinationName')
-            funcs.append(
-                partial(Broker.queue_object.new, self, queue_name)
-            )
-        async for q in AsyncioConcurrentFunctions(funcs):
-            yield q
+            _queue_names.append(queue_name)
+
+        async with self._pool:
+            async for _queue in self._pool.itermap(_worker, _queue_names):
+                yield _queue
 
     async def queue(self, name):
         queue_objects = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName={name}')
@@ -112,17 +116,18 @@ class Broker:
         return count
 
     async def connections(self, update_attributes=True):
+        async def _worker(connection):
+            return await connection.update()
+
         _connections = list()
         async for connection_type, object_name in self._connections():
             connection_name = parse_object_name(object_name).get('connectionName')
-            _connections.append(Broker.connection_object(self, connection_name, connection_type))
+            _connections.append(self.connection_object(self, connection_name, connection_type))
 
         if update_attributes is True:
-            funcs = list()
-            for conn in _connections:
-                funcs.append(conn.update)
-            async for conn in AsyncioConcurrentFunctions(funcs):
-                yield conn
+            async with self._pool:
+                async for _connection in self._pool.itermap(_worker, _connections):
+                    yield _connection
         else:
-            for conn in _connections:
-                yield conn
+            for _connection in _connections:
+                yield _connection
