@@ -1,74 +1,56 @@
+from __future__ import annotations
+
 import logging
-from collections import namedtuple
 from datetime import datetime, timedelta
-from functools import partial
+from typing import TYPE_CHECKING
 
 import httpx
 from asyncio_pool import AioPool
 
 from .connection import Connection
-from .errors import ApiError, BrokerError, HttpError
+from .errors import ActivemqManagerError
 from .helpers import parse_object_name
 from .job import ScheduledJob
 from .queue import Queue
+
+
+if TYPE_CHECKING:
+    from typing import Any, AsyncGenerator, Dict, Type, Optional
+    from .client import Client
 
 
 logger = logging.getLogger(__name__)
 
 
 class Broker:
-    dtformat = '%Y-%m-%d %H:%M:%S'
-    queue_object = Queue
-    connection_object = Connection
+    dtformat: str = '%Y-%m-%d %H:%M:%S'
+    queue_object: Type[Queue] = Queue
+    connection_object: Type[Connection] = Connection
 
-    def __init__(self, endpoint, origin='http://localhost:80', name='localhost', username=None, password=None, timeout=30, workers=10):
-        self.endpoint = endpoint
-        self.origin = origin
+    def __init__(self, client: Client, name: str = 'localhost', workers: int = 10) -> None:
+        self._client = client
         self.name = name
-        self.timeout = timeout
-        self._pool = AioPool(workers)
-        self.http_auth = httpx.BasicAuth(username, password=password) if (username and password) else None
+        self._pool: AioPool = AioPool(workers)
 
-    def __repr__(self):
-        return f'<activemq_manager.Client object endpoint={self.endpoint}>'
+    def __repr__(self) -> str:
+        return f'<activemq_manager.Client object endpoint={self._client.endpoint}>'
 
-    async def api(self, type, mbean, **kwargs):
-        payload = {
-            'type': type,
-            'mbean': mbean
-        }
-        payload.update(kwargs)
+    async def attributes(self) -> Dict[str, Any]:
+        return await self._client.dict_request('read', f'org.apache.activemq:type=Broker,brokerName={self.name}')
 
-        logger.debug(f'api payload: {payload}')
-        headers = {
-            'Origin': self.origin
-        }
-        async with httpx.AsyncClient(auth=self.http_auth, headers=headers, timeout=self.timeout) as client:
-            try:
-                r = await client.post(f'{self.endpoint}/api/jolokia', json=payload)
-            except httpx.NetworkError as e:
-                logger.exception(e)
-                raise HttpError('api call failed')
+    async def attribute(self, attribute_: str) -> Any:
+        return await self._client.request(
+            'read',
+            f'org.apache.activemq:type=Broker,brokerName={self.name}',
+            attribute=attribute_
+        )
 
-            if r.status_code == 200:
-                rdata = r.json()
-                if rdata.get('status') == 200:
-                    return rdata.get('value')
-                else:
-                    raise ApiError(rdata)
-            else:
-                text = r.text()
-                raise HttpError(f'http request failed\nstatus_code={r.status}\ntext={text}')
-
-    async def attribute(self, attribute_):
-        return await self.api('read', f'org.apache.activemq:type=Broker,brokerName={self.name}', attribute=attribute_)
-
-    async def queues(self, workers=10):
-        async def _worker(queue_name):
+    async def queues(self) -> AsyncGenerator:
+        async def _worker(queue_name) -> Queue:
             return await self.queue_object.new(self, queue_name)
 
         _queue_names = list()
-        for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName=*'):
+        for object_name in await self._client.list_request('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName=*'):
             queue_name = parse_object_name(object_name).get('destinationName')
             _queue_names.append(queue_name)
 
@@ -77,52 +59,68 @@ class Broker:
                 yield _queue
 
     async def queue(self, name):
-        queue_objects = await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName={name}')
+        queue_objects = await self._client.list_request('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName={name}')
         if len(queue_objects) == 1:
             queue_name = parse_object_name(queue_objects[0]).get('destinationName')
             return await Broker.queue_object.new(self, queue_name)
         else:
-            raise BrokerError(f'queue not found: {name}')
+            raise ActivemqManagerError(f'queue not found: {name}')
 
-    async def _jobs(self, start=None, end=None):
+    async def _jobs(
+        self,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None
+    ) -> Dict[str, Any]:
         if not start:
             start = datetime.now()
         if not end:
             end = start + timedelta(weeks=52)
-        return await self.api('exec', f'org.apache.activemq:type=Broker,brokerName={self.name},service=JobScheduler,name=JMS', operation='getAllJobs(java.lang.String,java.lang.String)', arguments=[
-            start.strftime(Broker.dtformat),
-            end.strftime(Broker.dtformat)
-        ])
+        return await self._client.dict_request(
+            'exec',
+            f'org.apache.activemq:type=Broker,brokerName={self.name},service=JobScheduler,name=JMS',
+            operation='getAllJobs(java.lang.String,java.lang.String)',
+            arguments=[
+                start.strftime(Broker.dtformat),
+                end.strftime(Broker.dtformat)
+            ]
+        )
 
-    async def job_count(self, start=None, end=None):
+    async def job_count(self, start: Optional[datetime] = None, end: Optional[datetime] = None) -> int:
         count = 0
-        for _ in (await self._jobs()).keys():
+        for _ in (await self._jobs(start, end)).keys():
             count += 1
         return count
 
-    async def jobs(self, start=None, end=None):
-        for data in (await self._jobs()).values():
+    async def jobs(self, start: Optional[datetime] = None, end: Optional[datetime] = None) -> AsyncGenerator:
+        for data in (await self._jobs(start, end)).values():
             yield ScheduledJob(self, data['jobId'], data)
 
-    async def _connections(self):
+    async def _connections(self) -> AsyncGenerator:
         for connection_type in (await self.attribute('TransportConnectors')).keys():
-            for object_name in await self.api('search', f'org.apache.activemq:type=Broker,brokerName={self.name},connector=clientConnectors,connectorName={connection_type},connectionViewType=remoteAddress,connectionName=*'):
+            for object_name in await self._client.list_request('search', f'org.apache.activemq:type=Broker,brokerName={self.name},connector=clientConnectors,connectorName={connection_type},connectionViewType=remoteAddress,connectionName=*'):
                 yield connection_type, object_name
 
-    async def connection_count(self):
+    async def connection_count(self) -> int:
         count = 0
         async for _ in self._connections():
             count += 1
         return count
 
-    async def connections(self, update_attributes=True):
-        async def _worker(connection):
+    async def connections(self, update_attributes: bool = True) -> AsyncGenerator:
+        async def _worker(connection) -> Connection:
             return await connection.update()
 
         _connections = list()
         async for connection_type, object_name in self._connections():
-            connection_name = parse_object_name(object_name).get('connectionName')
-            _connections.append(self.connection_object(self, connection_name, connection_type))
+            _parsed_object_name = parse_object_name(object_name)
+            if 'connectionName' in _parsed_object_name:
+                _connections.append(self.connection_object(
+                    self,
+                    _parsed_object_name['connectionName'],
+                    connection_type
+                ))
+            else:
+                raise ActivemqManagerError(f'connectionName property not found in {_parsed_object_name}')
 
         if update_attributes is True:
             async with self._pool:

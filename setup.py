@@ -2,7 +2,7 @@
 
 import os.path
 
-from setuptools import setup
+from setuptools import setup  # type: ignore
 
 
 # get the version to include in setup()
@@ -15,12 +15,15 @@ with open(f'{dir_}/activemq_manager/__init__.py') as fh:
 
 setup(
     name='py-activemq-manager',
-    version=__VERSION__,
+    version=__VERSION__,  # type: ignore
     license='MIT',
     author='Kyle Smith',
     author_email='smithk86@gmail.com',
     description='gather information about activemq via the jolokia api',
     packages=['activemq_manager'],
+    setup_requires=[
+        'pytest-runner'
+    ],
     install_requires=[
         'asyncio-pool',
         'dateparser',
@@ -28,9 +31,12 @@ setup(
     ],
     tests_require=[
         'docker',
+        'mypy',
         'pytest',
         'pytest-asyncio',
-        'stomp.py'
+        'pytest-mypy',
+        'stomp.py',
+        'types-dateparser'
     ],
     classifiers=[
         'Intended Audience :: Developers',

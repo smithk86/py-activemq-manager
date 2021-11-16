@@ -3,7 +3,19 @@ from uuid import UUID
 
 import pytest
 
-from activemq_manager import Broker, BrokerError, Connection, Queue, Message, MessageData, ScheduledJob
+from activemq_manager import Broker, ActivemqManagerError, Connection, Queue, Message, MessageData, ScheduledJob
+
+
+@pytest.mark.asyncio
+async def test_broker(broker, activemq_version):
+    assert type(broker) is Broker
+    assert type(broker.name) is str
+    assert (await broker.attribute('BrokerName')) == broker.name
+    assert (await broker.attribute('BrokerVersion')) == activemq_version
+
+    _attributes = await broker.attributes()
+    assert _attributes.get('BrokerName') == broker.name
+    assert _attributes.get('BrokerVersion') == activemq_version
 
 
 # these tests cannot be used as STOMP does not keep an open connections
@@ -20,14 +32,6 @@ async def test_connections(broker):
         assert type(c.remote_address) is str
         assert type(c.active) is bool
         assert type(c.slow) is bool
-
-
-@pytest.mark.asyncio
-async def test_broker(broker, activemq_version):
-    assert type(broker) is Broker
-    assert type(broker.name) is str
-    assert await broker.attribute('BrokerName') == broker.name
-    assert await broker.attribute('BrokerVersion') == activemq_version
 
 
 @pytest.mark.usefixtures('load_messages')
@@ -50,7 +54,7 @@ async def test_queues(broker):
 
     # test Queue.delete() with queue1
     await (await broker.queue('pytest.queue1')).delete()
-    with pytest.raises(BrokerError) as excinfo:
+    with pytest.raises(ActivemqManagerError) as excinfo:
         await broker.queue('pytest.queue1')
     assert 'queue not found: pytest.queue1' in str(excinfo.value)
 
@@ -131,19 +135,6 @@ def test_parse_byte_array():
     with pytest.raises(ValueError) as excinfo:
         Message.parse_byte_array({'data': 'abcd'})
     assert str(excinfo.value) == "data is not a byte array: {'data': 'abcd'}"
-
-
-@staticmethod
-def parse_byte_array(data):
-    if not Message.is_byte_array(data):
-        raise ValueError(f'data is not a byte array: {data}')
-    offset = data['offset']
-    length = data['length']
-    trimmed_data = data['data'][offset:length]
-    value = ''
-    for c in trimmed_data:
-        value += chr(c)
-    return value
 
 
 @pytest.mark.asyncio

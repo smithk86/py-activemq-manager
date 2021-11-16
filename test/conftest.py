@@ -9,25 +9,25 @@ sys.path.insert(0, str(dir_.parent))
 import asyncio
 import logging
 import socket
+import time
 from collections import namedtuple
-from time import sleep
 from uuid import uuid4
 
-import docker
+import docker  # type: ignore
 import pytest
-import stomp
+import stomp  # type: ignore
 
 import docker_helpers
 import activemq_manager
 
 
-#logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 ContainerInfo = namedtuple('ContainerInfo', ['address', 'port', 'container'])
 
 
 def pytest_addoption(parser):
-    parser.addoption('--activemq-version', required=True)
+    parser.addoption('--activemq-version', default='5.16.3')
 
 
 @pytest.fixture(scope='session')
@@ -76,7 +76,7 @@ def stomp_connection(activemq):
             break
         except (OSError, stomp.exception.ConnectFailedException, stomp.exception.NotConnectedException):
             logger.debug('stomp connect failed...retry in 1s')
-            sleep(1)
+            time.sleep(1)
 
     yield client
     client.disconnect()
@@ -84,23 +84,28 @@ def stomp_connection(activemq):
 
 @pytest.fixture(scope='function')
 @pytest.mark.asyncio
-async def broker(activemq):
-    broker_ = activemq_manager.Broker(
+async def client(activemq):
+    async with activemq_manager.Client(
         endpoint=f'http://localhost:{activemq.ports.get("8161/tcp")}',
         origin='http://pytest:80',
-        username='admin',
-        password='admin'
-    )
+        auth=('admin', 'admin')
+    ) as _client:
+        yield _client
 
+
+@pytest.fixture(scope='function')
+@pytest.mark.asyncio
+async def broker(client):
+    _broker = client.broker()
     logger.debug('waiting for amq web interface')
     while True:
         try:
-            await broker_.attribute('BrokerVersion')
+            await _broker.attribute('BrokerVersion')
             break
         except Exception as e:
-            sleep(1)
+            await asyncio.sleep(.5)
 
-    return broker_
+    return _broker
 
 
 @pytest.mark.asyncio
@@ -119,7 +124,7 @@ async def load_messages(stomp_connection, broker, lorem_ipsum):
     stomp_connection.send('pytest.queue4', lorem_ipsum,  test_prop1='abcd', test_prop2=3.14159)
     stomp_connection.send('pytest.queue4', lorem_ipsum,  test_prop1='abcd', test_prop2=3.14159, headers={'persistent': 'true'})
     stomp_connection.send('pytest.queue4', lorem_ipsum,  test_prop1='abcd', test_prop2=3.14159, headers={'persistent': 'true'})
-    sleep(1)
+    await asyncio.sleep(1)
 
     yield
 
@@ -134,7 +139,7 @@ async def load_jobs(stomp_connection, broker):
         stomp_connection.send('pytest.queue1', str(uuid4()), headers={
             'AMQ_SCHEDULED_DELAY': 100000000
         })
-    sleep(1)
+    await asyncio.sleep(1)
 
     yield
 

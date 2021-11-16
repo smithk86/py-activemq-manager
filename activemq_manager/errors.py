@@ -1,15 +1,20 @@
-class BrokerError(Exception):
+import collections.abc
+
+
+class ExtendedException(Exception, collections.abc.Mapping):
+    def __init__(self, message, **data):
+        self.data = dict(message=message, **data)
+        super().__init__(message)
+
+    def __iter__(self):
+        return iter(self.data.keys())
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    def __len__(self):
+        return len(self.data)
+
+
+class ActivemqManagerError(ExtendedException):
     pass
-
-
-class HttpError(BrokerError):
-    pass
-
-
-class ApiError(HttpError):
-    def __init__(self, response):
-        self.request = response.get('request')
-        self.error = response.get('error')
-        self.error_type = response.get('error_type')
-        self.status = response.get('status')
-        super(ApiError, self).__init__(self.error)
