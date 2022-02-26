@@ -1,0 +1,37 @@
+[tool]
+[tool.poetry]
+name = "py-activemq-manager"
+version = "0.1.0"
+description = "gather information about activemq via the jolokia api"
+authors = ["Kyle Smith <smithk86@smc3.com>"]
+license = "MIT"
+repository = "https://github.com/smithk86/py-activemq-manager"
+packages = [
+    { include = "activemq_manager" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+httpx = "^0.21.1"
+dateparser = "^1.1.0"
+asyncio-pool = "^0.5.2"
+
+
+[tool.poetry.dev-dependencies]
+mypy = "^0.920"
+pytest = "^6.2"
+pytest-asyncio = "^0.16.0"
+pytest-mypy = "^0.8.1"
+docker = "^5.0.3"
+types-dateparser = "^1.0.8"
+"stomp.py" = "^8.0.0"
+
+[tool.poetry.scripts]
+pytest = "pytest:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "--mypy"
