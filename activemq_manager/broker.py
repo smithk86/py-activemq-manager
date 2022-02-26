@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 class Broker:
     dtformat: str = '%Y-%m-%d %H:%M:%S'
-    queue_object: Type[Queue] = Queue
-    connection_object: Type[Connection] = Connection
+    _connection_class: Type[Connection] = Connection
+    _queue_class: Type[Queue] = Queue
 
     def __init__(self, client: Client, name: str = 'localhost', workers: int = 10) -> None:
         self._client = client
@@ -47,7 +47,7 @@ class Broker:
 
     async def queues(self) -> AsyncGenerator:
         async def _worker(queue_name) -> Queue:
-            return await self.queue_object.new(self, queue_name)
+            return await self._queue_class.new(self, queue_name)
 
         _queue_names = list()
         for object_name in await self._client.list_request('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName=*'):
@@ -62,7 +62,7 @@ class Broker:
         queue_objects = await self._client.list_request('search', f'org.apache.activemq:type=Broker,brokerName={self.name},destinationType=Queue,destinationName={name}')
         if len(queue_objects) == 1:
             queue_name = parse_object_name(queue_objects[0]).get('destinationName')
-            return await Broker.queue_object.new(self, queue_name)
+            return await self._queue_class.new(self, queue_name)
         else:
             raise ActivemqManagerError(f'queue not found: {name}')
 
@@ -114,7 +114,7 @@ class Broker:
         async for connection_type, object_name in self._connections():
             _parsed_object_name = parse_object_name(object_name)
             if 'connectionName' in _parsed_object_name:
-                _connections.append(self.connection_object(
+                _connections.append(self._connection_class(
                     self,
                     _parsed_object_name['connectionName'],
                     connection_type

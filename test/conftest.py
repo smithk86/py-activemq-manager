@@ -1,24 +1,21 @@
-# add the project directory to the pythonpath
-import os.path
-import sys
-from pathlib import Path
-dir_ = Path(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, str(dir_.parent))
-
-
 import asyncio
 import logging
 import socket
 import time
 from collections import namedtuple
+from pathlib import Path
 from uuid import uuid4
 
-import docker  # type: ignore
+import docker
 import pytest
-import stomp  # type: ignore
+import pytest_asyncio
+import stomp
 
 import docker_helpers
 import activemq_manager
+
+
+dir_ = Path(__file__).parent
 
 
 # logging.basicConfig(level=logging.DEBUG)
@@ -45,12 +42,11 @@ def event_loop():
 
 @pytest.fixture(scope='session')
 def activemq(activemq_version):
-    dir_ = os.path.dirname(os.path.abspath(__file__))
     client = docker.from_env()
     activemq_image = f'test_activemq_manager:{activemq_version}'
 
     client.images.build(
-        path=f'{dir_}/activemq',
+        path=str(dir_.joinpath('activemq')),
         tag=activemq_image,
         buildargs={
             'ACTIVEMQ_VERSION': activemq_version
@@ -82,8 +78,7 @@ def stomp_connection(activemq):
     client.disconnect()
 
 
-@pytest.fixture(scope='function')
-@pytest.mark.asyncio
+@pytest_asyncio.fixture(scope='function')
 async def client(activemq):
     async with activemq_manager.Client(
         endpoint=f'http://localhost:{activemq.ports.get("8161/tcp")}',
@@ -93,8 +88,7 @@ async def client(activemq):
         yield _client
 
 
-@pytest.fixture(scope='function')
-@pytest.mark.asyncio
+@pytest_asyncio.fixture(scope='function')
 async def broker(client):
     _broker = client.broker()
     logger.debug('waiting for amq web interface')
@@ -108,8 +102,7 @@ async def broker(client):
     return _broker
 
 
-@pytest.mark.asyncio
-@pytest.fixture(scope='function')
+@pytest_asyncio.fixture(scope='function')
 async def load_messages(stomp_connection, broker, lorem_ipsum):
     with open(f'{dir_}/files/lorem_ipsum.json') as fh:
         lorem_ipsum = fh.read()
@@ -132,8 +125,7 @@ async def load_messages(stomp_connection, broker, lorem_ipsum):
         await q.delete()
 
 
-@pytest.mark.asyncio
-@pytest.fixture(scope='function')
+@pytest_asyncio.fixture(scope='function')
 async def load_jobs(stomp_connection, broker):
     for _ in range(10):
         stomp_connection.send('pytest.queue1', str(uuid4()), headers={
@@ -147,7 +139,7 @@ async def load_jobs(stomp_connection, broker):
         await job.delete()
 
 
-@pytest.fixture(scope='session')
+@pytest_asyncio.fixture(scope='session')
 async def lorem_ipsum():
     with open(f'{dir_}/files/lorem_ipsum.json') as fh:
         return fh.read()

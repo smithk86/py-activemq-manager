@@ -14,7 +14,7 @@ from .errors import ActivemqManagerError
 
 
 if TYPE_CHECKING:
-    from typing import Any, Dict, List, Optional
+    from typing import Any, Dict, List, Optional, Type
 
 
 logger = logging.getLogger(__name__)
@@ -28,12 +28,12 @@ def _raise_for_status(response: httpx.Response) -> None:
 
 
 class Client:
+    _broker_class: Type[Broker] = Broker
+
     def __init__(
         self,
         endpoint: str,
         origin: str = 'http://localhost:80',
-        username: Optional[str] = None,
-        password: Optional[str] = None,
         **http_client_kwargs
     ):
         self.endpoint = endpoint

@@ -13,15 +13,14 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 httpx = "^0.21.1"
+asyncio-pool = { git = "https://github.com/smithk86/asyncio-pool.git", rev = "d8e7fa17eaf72d9b8199858274ab469b514da6fd" }
 dateparser = "^1.1.0"
-asyncio-pool = "^0.5.2"
-
 
 [tool.poetry.dev-dependencies]
-mypy = "^0.920"
-pytest = "^6.2"
-pytest-asyncio = "^0.16.0"
-pytest-mypy = "^0.8.1"
+mypy = "^0.931"
+pytest = "^6.2.5"
+pytest-asyncio = "^0.17.2"
+pytest-mypy = "^0.9.1"
 docker = "^5.0.3"
 types-dateparser = "^1.0.8"
 "stomp.py" = "^8.0.0"
@@ -33,5 +32,13 @@ pytest = "pytest:main"
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[[tool.mypy.overrides]]
+module = [
+    "docker",
+    "stomp"
+]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 addopts = "--mypy"
+asyncio_mode = "strict"

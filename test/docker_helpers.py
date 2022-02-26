@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import docker  # type: ignore
 
 
-ContainerInfo = namedtuple('ContainerInfo', ['ports', 'container'])
+ContainerInfo = namedtuple("ContainerInfo", ["ports", "container"])
 
 
 def wait_for_port(host, port, timeout=5):
@@ -26,28 +26,22 @@ def wait_for_port(host, port, timeout=5):
 def run(image, ports):
     container_run_ports = dict()
     for port in ports:
-        container_run_ports[port] = ('0.0.0.0', None)
+        container_run_ports[port] = ("0.0.0.0", None)
     client = docker.from_env()
     container = client.containers.run(
-        image,
-        detach=True,
-        auto_remove=True,
-        ports=container_run_ports
+        image, detach=True, auto_remove=True, ports=container_run_ports
     )
 
-    _ports = client.api.inspect_container(container.id)['NetworkSettings']['Ports']
+    _ports = client.api.inspect_container(container.id)["NetworkSettings"]["Ports"]
     _first_port = ports[0]
     _binded_ports = dict()
     for port in ports:
-        _binded_ports[port] = int(_ports[port][0]['HostPort'])
+        _binded_ports[port] = int(_ports[port][0]["HostPort"])
     for port in _binded_ports.values():
-        if wait_for_port('localhost', port, timeout=15) is False:
-            raise RuntimeError('httpd did not start within 15s')
+        if wait_for_port("localhost", port, timeout=15) is False:
+            raise RuntimeError("httpd did not start within 15s")
 
     try:
-        yield ContainerInfo(
-            ports=_binded_ports,
-            container=container
-        )
+        yield ContainerInfo(ports=_binded_ports, container=container)
     finally:
         container.stop()
