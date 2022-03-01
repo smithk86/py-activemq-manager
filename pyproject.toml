@@ -13,7 +13,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8"
 httpx = "^0.21.1"
-asyncio-pool = { git = "https://github.com/smithk86/asyncio-pool.git", rev = "d8e7fa17eaf72d9b8199858274ab469b514da6fd" }
+asyncio-pool = { git = "https://github.com/smithk86/asyncio-pool.git", rev = "4afc55649f6f26768e1eb1e04689683a4b14a29e" }
 dateparser = "^1.1.0"
 
 [tool.poetry.dev-dependencies]

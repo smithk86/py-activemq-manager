@@ -17,7 +17,7 @@ trio = ["trio (>=0.16)"]
 
 [[package]]
 name = "asyncio-pool"
-version = "0.5.1"
+version = "0.5.3-smithk86"
 description = "Pool of asyncio coroutines with familiar interface"
 category = "main"
 optional = false
@@ -27,8 +27,8 @@ develop = false
 [package.source]
 type = "git"
 url = "https://github.com/smithk86/asyncio-pool.git"
-reference = "d8e7fa17eaf72d9b8199858274ab469b514da6fd"
-resolved_reference = "d8e7fa17eaf72d9b8199858274ab469b514da6fd"
+reference = "4afc55649f6f26768e1eb1e04689683a4b14a29e"
+resolved_reference = "4afc55649f6f26768e1eb1e04689683a4b14a29e"
 
 [[package]]
 name = "atomicwrites"
@@ -577,7 +577,7 @@ test = ["websockets"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "d671b0c91d296057a04a2b4c62e0eb1acb6c99fb3bfc77ff82a468bd0915198f"
+content-hash = "60462ca61effd149c4f9d4eb3e829cccb40d001bbdb64f0bf6635898fd5399a9"
 
 [metadata.files]
 anyio = [
