@@ -35,7 +35,7 @@ def activemq_version(request):
 # override the default event_loop fixture
 @pytest.fixture(scope="session")
 def event_loop():
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
@@ -43,7 +43,7 @@ def event_loop():
 @pytest.fixture(scope="session")
 def activemq(activemq_version):
     client = docker.from_env()
-    activemq_image = f"test_activemq_manager:{activemq_version}"
+    activemq_image = f"pytest-activemq:{activemq_version}"
 
     client.images.build(
         path=str(dir_.joinpath("activemq")),
@@ -106,9 +106,6 @@ async def broker(client):
 
 @pytest_asyncio.fixture(scope="function")
 async def load_messages(stomp_connection, broker, lorem_ipsum):
-    with open(f"{dir_}/files/lorem_ipsum.json") as fh:
-        lorem_ipsum = fh.read()
-
     stomp_connection.send(
         "pytest.queue1", str(uuid4()), test_prop1="abcd", test_prop2=3.14159
     )
@@ -171,5 +168,5 @@ async def load_jobs(stomp_connection, broker):
 
 @pytest_asyncio.fixture(scope="session")
 async def lorem_ipsum():
-    with open(f"{dir_}/files/lorem_ipsum.json") as fh:
+    with open(dir_.joinpath("files/lorem_ipsum.json")) as fh:
         return fh.read()
