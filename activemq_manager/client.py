@@ -110,4 +110,4 @@ class Client:
         return await self._request(type_, mbean, **kwargs)
 
     def broker(self, name: str = "localhost", workers: int = 10) -> Broker:
-        return Broker(self, name=name, workers=workers)
+        return self._broker_class(self, name=name, workers=workers)

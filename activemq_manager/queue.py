@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 class Queue:
+    _message_class: Type[Message] = Message
+
     def __init__(self, broker, name) -> None:
         self.broker = broker
         self.name = name
@@ -113,6 +115,6 @@ class Queue:
             )
 
         return [
-            Message(queue=self, id_=id_, attributes=attributes)
+            self._message_class(queue=self, id_=id_, attributes=attributes)
             for id_, attributes in message_table.items()
         ]
