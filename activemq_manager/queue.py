@@ -32,9 +32,9 @@ class Queue:
     def _client(self) -> Client:
         return self.broker._client
 
-    @staticmethod
-    async def new(broker, name) -> Queue:
-        q = Queue(broker, name)
+    @classmethod
+    async def new(cls, broker, name) -> Queue:
+        q = cls(broker, name)
         return await q.update()
 
     async def update(self) -> Queue:

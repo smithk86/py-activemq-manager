@@ -44,9 +44,9 @@ class Connection:
     def _client(self):
         return self.broker._client
 
-    @staticmethod
-    async def new(broker: Broker, name: str, type_: str) -> Connection:
-        conn = Connection(broker, name, type_)
+    @classmethod
+    async def new(cls, broker: Broker, name: str, type_: str) -> Connection:
+        conn = cls(broker, name, type_)
         return await conn.update()
 
     def _attribute(self, name: str, expected_type: Type) -> Any:
