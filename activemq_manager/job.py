@@ -23,7 +23,7 @@ class ScheduledJob:
         self._data = data
 
     def __repr__(self):
-        return f'<activemq_manager.ScheduledJobs object id={self.id}>'
+        return f"<activemq_manager.ScheduledJobs object id={self.id}>"
 
     @property
     def _client(self) -> Client:
@@ -31,18 +31,21 @@ class ScheduledJob:
 
     @property
     def start(self) -> datetime:
-        return activemq_stamp_datetime(self._data['start'])
+        return activemq_stamp_datetime(self._data["start"])
 
     @property
     def next(self) -> datetime:
-        return activemq_stamp_datetime(self._data['next'])
+        return activemq_stamp_datetime(self._data["next"])
 
     @property
     def delay(self) -> int:
-        return self._data['delay']
+        return self._data["delay"]
 
     async def delete(self) -> None:
-        logger.info(f'delete scheduled message: {self.id} [start={self.start}]')
-        await self._client.request('exec', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},service=JobScheduler,name=JMS', operation='removeJob(java.lang.String)', arguments=[
-            self.id
-        ])
+        logger.info(f"delete scheduled message: {self.id} [start={self.start}]")
+        await self._client.request(
+            "exec",
+            f"org.apache.activemq:type=Broker,brokerName={self.broker.name},service=JobScheduler,name=JMS",
+            operation="removeJob(java.lang.String)",
+            arguments=[self.id],
+        )

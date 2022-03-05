@@ -10,7 +10,11 @@ if TYPE_CHECKING:
 
 def activemq_stamp_datetime(timestamp: str) -> datetime:
     if len(timestamp) != 19 and len(timestamp) != 24 and len(timestamp) != 27:
-        raise ValueError('activemq timestamps are either 20, 24, or 27 characters: got {} ({})'.format(len(timestamp), timestamp))
+        raise ValueError(
+            "activemq timestamps are either 20, 24, or 27 characters: got {} ({})".format(
+                len(timestamp), timestamp
+            )
+        )
 
     microsecond = int(timestamp[20:23]) * 1000 if len(timestamp) == 26 else 0
 
@@ -21,13 +25,13 @@ def activemq_stamp_datetime(timestamp: str) -> datetime:
         hour=int(timestamp[11:13]),
         minute=int(timestamp[14:16]),
         second=int(timestamp[17:19]),
-        microsecond=microsecond
+        microsecond=microsecond,
     )
 
 
 def parse_object_name(path: str) -> Dict[str, str]:
     parts: Dict[str, str] = dict()
-    for part in path.split(','):
-        key, val = tuple(part.split('='))
+    for part in path.split(","):
+        key, val = tuple(part.split("="))
         parts[key] = val
     return parts

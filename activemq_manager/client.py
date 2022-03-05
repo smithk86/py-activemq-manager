@@ -31,10 +31,7 @@ class Client:
     _broker_class: Type[Broker] = Broker
 
     def __init__(
-        self,
-        endpoint: str,
-        origin: str = 'http://localhost:80',
-        **http_client_kwargs
+        self, endpoint: str, origin: str = "http://localhost:80", **http_client_kwargs
     ):
         self.endpoint = endpoint
         self.origin = origin
@@ -44,16 +41,16 @@ class Client:
     def __del__(self) -> None:
         if self.__http_client and self.__http_client._state is ClientState.OPENED:
             warnings.warn(
-                f'py_httpd_manager.Client for {self.endpoint} '
-                'was not properly closed',
-                UserWarning
+                f"py_httpd_manager.Client for {self.endpoint} "
+                "was not properly closed",
+                UserWarning,
             )
 
     @property
     def _http_client(self) -> httpx.AsyncClient:
         if (
-            self.__http_client is None or
-            self.__http_client._state is ClientState.CLOSED
+            self.__http_client is None
+            or self.__http_client._state is ClientState.CLOSED
         ):
             self.__http_client = httpx.AsyncClient(**self._http_client_kwargs)
         return self.__http_client
@@ -71,49 +68,46 @@ class Client:
         await self._http_client.aclose()
 
     async def _request(self, type_, mbean, **kwargs) -> Any:
-        payload = {
-            'type': type_,
-            'mbean': mbean
-        }
+        payload = {"type": type_, "mbean": mbean}
         payload.update(kwargs)
 
-        logger.debug(f'api payload: {payload}')
+        logger.debug(f"api payload: {payload}")
         try:
             _response: httpx.Response = await self._http_client.post(
-                f'{self.endpoint}/api/jolokia',
-                headers={
-                    'Origin': self.origin
-                },
-                json=payload
+                f"{self.endpoint}/api/jolokia",
+                headers={"Origin": self.origin},
+                json=payload,
             )
         except httpx.NetworkError as e:
             logger.exception(e)
-            raise ActivemqManagerError('api call failed')
+            raise ActivemqManagerError("api call failed")
 
         _raise_for_status(_response)
 
         _payload = _response.json()
-        if _payload.get('status') == 200:
-            return _payload['value']
+        if _payload.get("status") == 200:
+            return _payload["value"]
         else:
-            raise ActivemqManagerError('http request returned an unexpected payload', response=_response)
+            raise ActivemqManagerError(
+                "http request returned an unexpected payload", response=_response
+            )
 
     async def dict_request(self, type_, mbean, **kwargs) -> Dict:
         _results = await self._request(type_, mbean, **kwargs)
         if isinstance(_results, dict):
             return _results
         else:
-            raise ActivemqManagerError('dictionary was expected')
+            raise ActivemqManagerError("dictionary was expected")
 
     async def list_request(self, type_, mbean, **kwargs) -> List:
         _results = await self._request(type_, mbean, **kwargs)
         if isinstance(_results, list):
             return _results
         else:
-            raise ActivemqManagerError('list was expected')
+            raise ActivemqManagerError("list was expected")
 
     async def request(self, type_, mbean, **kwargs) -> Any:
         return await self._request(type_, mbean, **kwargs)
 
-    def broker(self, name: str = 'localhost', workers: int = 10) -> Broker:
+    def broker(self, name: str = "localhost", workers: int = 10) -> Broker:
         return Broker(self, name=name, workers=workers)

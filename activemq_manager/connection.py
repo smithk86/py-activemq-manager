@@ -19,16 +19,16 @@ logger = logging.getLogger(__name__)
 class Connection:
     # exclude 'Consumers' and 'Producers' as these tend to contain a large amount of data
     default_attribute = [
-        'Active',
-        'ActiveTransactionCount',
-        'Blocked',
-        'ClientId',
-        'Connected',
-        'DispatchQueueSize',
-        'OldestActiveTransactionDuration',
-        'RemoteAddress',
-        'Slow',
-        'UserName'
+        "Active",
+        "ActiveTransactionCount",
+        "Blocked",
+        "ClientId",
+        "Connected",
+        "DispatchQueueSize",
+        "OldestActiveTransactionDuration",
+        "RemoteAddress",
+        "Slow",
+        "UserName",
     ]
 
     def __init__(self, broker: Broker, name: str, type_: str) -> None:
@@ -38,7 +38,7 @@ class Connection:
         self._attributes: Dict[str, Any] = {}
 
     def __repr__(self) -> str:
-        return f'<activemq_manager.Connection object name={self.name}>'
+        return f"<activemq_manager.Connection object name={self.name}>"
 
     @property
     def _client(self):
@@ -51,29 +51,29 @@ class Connection:
 
     def _attribute(self, name: str, expected_type: Type) -> Any:
         if not self._attributes:
-            ActivemqManagerError('attributes have not been cached')
+            ActivemqManagerError("attributes have not been cached")
         elif name not in self._attributes:
-            ActivemqManagerError(f'attribute name does not exist: {name}')
+            ActivemqManagerError(f"attribute name does not exist: {name}")
         elif not isinstance(self._attributes[name], expected_type):
-            ActivemqManagerError(f'attribute type is incorrect: {name}')
+            ActivemqManagerError(f"attribute type is incorrect: {name}")
 
         return self._attributes[name]
 
     @property
     def client_id(self) -> str:
-        return self._attribute('ClientId', str)
+        return self._attribute("ClientId", str)
 
     @property
     def remote_address(self) -> str:
-        return self._attribute('RemoteAddress', str)
+        return self._attribute("RemoteAddress", str)
 
     @property
     def active(self) -> bool:
-        return self._attribute('Active', bool)
+        return self._attribute("Active", bool)
 
     @property
     def slow(self) -> bool:
-        return self._attribute('Slow', bool)
+        return self._attribute("Slow", bool)
 
     async def update(self) -> Connection:
         self._attributes = await self.attributes()
@@ -83,4 +83,8 @@ class Connection:
         if attribute is None:
             attribute = self.default_attribute
 
-        return await self.broker._client.dict_request('read', f'org.apache.activemq:type=Broker,brokerName={self.broker.name},connector=clientConnectors,connectorName={self.type},connectionViewType=remoteAddress,connectionName={self.name}', attribute=attribute)
+        return await self.broker._client.dict_request(
+            "read",
+            f"org.apache.activemq:type=Broker,brokerName={self.broker.name},connector=clientConnectors,connectorName={self.type},connectionViewType=remoteAddress,connectionName={self.name}",
+            attribute=attribute,
+        )

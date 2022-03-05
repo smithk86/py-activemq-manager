@@ -6,5 +6,4 @@ from .job import ScheduledJob
 from .queue import Queue
 from .message import Message, MessageData
 
-__version__ = '0.1.0-dev'
-
+__version__ = "0.1.0-dev"
