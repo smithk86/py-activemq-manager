@@ -109,5 +109,5 @@ class Client:
     async def request(self, type_, mbean, **kwargs) -> Any:
         return await self._request(type_, mbean, **kwargs)
 
-    def broker(self, name: str = "localhost", workers: int = 10) -> Broker:
-        return self._broker_class(self, name=name, workers=workers)
+    def broker(self, name: str = "localhost", workers: int = 10, **kwargs) -> Broker:
+        return self._broker_class(self, name=name, workers=workers, **kwargs)
