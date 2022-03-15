@@ -41,6 +41,11 @@ def event_loop():
 
 
 @pytest.fixture(scope="session")
+def files_directory():
+    return dir_.joinpath("files")
+
+
+@pytest.fixture(scope="session")
 def activemq(activemq_version):
     client = docker.from_env()
     activemq_image = f"pytest-activemq:{activemq_version}"
