@@ -7,6 +7,7 @@ import pytest
 from activemq_manager import (
     Broker,
     ActivemqManagerError,
+    Client,
     Connection,
     Queue,
     Message,
@@ -18,6 +19,7 @@ from activemq_manager import (
 @pytest.mark.asyncio
 async def test_broker(broker, activemq_version):
     assert type(broker) is Broker
+    assert type(broker._client) is Client
     assert type(broker.name) is str
     assert (await broker.attribute("BrokerName")) == broker.name
     assert (await broker.attribute("BrokerVersion")) == activemq_version
@@ -35,6 +37,7 @@ async def test_connections(broker):
     assert count == 1
     async for c in broker.connections():
         assert type(c) is Connection
+        assert type(c._client) is Client
         assert type(c.broker) is Broker
         assert type(c.name) is str
         assert type(c.type) is str
@@ -155,3 +158,22 @@ async def test_jobs(broker, stomp_connection):
         assert type(j.next) is datetime
         assert type(j.start) is datetime
         assert type(j.delay) is int
+
+
+@pytest.mark.asyncio
+async def test_unclosed_client(activemq_version, activemq):
+    _client = Client(
+        endpoint=f'http://localhost:{activemq.ports.get("8161/tcp")}',
+        origin="http://pytest:80",
+        auth=("admin", "admin"),
+    )
+    _broker = _client.broker()
+    assert (await _broker.attribute("BrokerVersion")) == activemq_version
+
+    with pytest.warns(
+        UserWarning,
+        match=r"activemq_manager\.client\.Client for http://localhost:\d* was not properly closed",
+    ):
+        _client.__del__()
+
+    await _client.close()

@@ -40,9 +40,9 @@ class Client:
 
     def __del__(self) -> None:
         if self.__http_client and self.__http_client._state is ClientState.OPENED:
+            _fqcn = ".".join([type(self).__module__, type(self).__name__])
             warnings.warn(
-                f"py_httpd_manager.Client for {self.endpoint} "
-                "was not properly closed",
+                f"{_fqcn} for {self.endpoint} was not properly closed",
                 UserWarning,
             )
 

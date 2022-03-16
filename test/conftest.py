@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import docker
+import httpx
 import pytest
 import pytest_asyncio
 import stomp
@@ -59,6 +60,17 @@ def activemq(activemq_version):
     with docker_helpers.run(
         activemq_image, ports=["8161/tcp", "61613/tcp"]
     ) as container_info:
+        _port = container_info.ports.get("8161/tcp")
+        with httpx.Client(timeout=1, auth=("admin", "admin")) as _client:
+            while True:
+                try:
+                    r = _client.get(f"http://localhost:{_port}/api/jolokia")
+                    r.raise_for_status()
+                    break
+                except httpx.HTTPError:
+                    logger.debug("waiting for amq readiness")
+                    time.sleep(1)
+
         yield container_info
 
 
